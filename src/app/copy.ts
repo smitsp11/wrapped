@@ -8,13 +8,17 @@ export const BETA_TAG = 'Beta'
 export const DONE = 'All done ✓'
 
 export const WELCOME_TITLE = 'iMessage Wrapped'
-export const WELCOME_LINES = [
-  'Your year in texts, made on your Mac.',
-  '• Reads your Messages and Contacts, on this Mac only',
-  '• Nothing is uploaded. No account, no AI',
-  '• You see everything before you share anything',
-  '• Added  wrapped  to your shell\'s startup file so you can type it next time (look for the line marked "added by iMessage Wrapped" to undo)',
-]
+/** `addedToPath`: the installer's line is in a shell startup file (see shellStartup.ts). Never claim it otherwise. */
+export function welcomeLines(addedToPath: boolean): string[] {
+  return [
+    'Your year in texts, made on your Mac.',
+    '• Reads your Messages and Contacts, on this Mac only',
+    '• You see everything before you share anything',
+    ...(addedToPath
+      ? ['• Added  wrapped  to your shell\'s startup file so you can type it next time (look for the line marked "added by iMessage Wrapped" to undo)']
+      : []),
+  ]
+}
 
 export function accessSteps(terminal: string, inTmux = false): string[] {
   return [

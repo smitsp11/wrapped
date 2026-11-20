@@ -98,6 +98,22 @@ describe('buildSlides', () => {
     expect(widths[widths.length - 1]).toBeLessThan(100)
   })
 
+  it('titles the replies slide as typical per person and shows seconds under a minute', () => {
+    const wrap = makeFakeWrap('group')
+    wrap.replies.medianReplyMinutesByPerson.p1 = 0.68
+    const html = slideHtml(wrap, 'replies')
+    expect(html).toContain('<h2>Fastest repliers</h2><p class="aside">(typical reply time)</p>')
+    expect(html.match(/class="aside"/g)).toHaveLength(1)
+    expect(html).toContain('41 sec')
+    expect(html).not.toContain('>0 min<')
+  })
+
+  it("sizes an award winner by the name's longest word", () => {
+    const wrap = makeFakeWrap('group')
+    wrap.people[wrap.awards[0]!.personId] = 'Maximiliana Featherstonehaugh'
+    expect(slideHtml(wrap, `award-${wrap.awards[0]!.id}`)).toContain('class="big winner" style="--len:17"')
+  })
+
   it('leaves people with fewer than 5 replies out of fastest replies', () => {
     const wrap = makeFakeWrap('group')
     wrap.replies.medianReplyMinutesByPerson.p4 = 0.5

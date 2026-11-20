@@ -16,6 +16,7 @@ import { fullYear, periodChoices, yearSoFar, type Period } from './period'
 import { savedWrapsOption } from './savedWraps'
 import { findWebDir, serveUntilDone } from './serve'
 import { loadContactBook, openSession, type Session } from './session'
+import { installerAddedToPath } from './shellStartup'
 import { APP_DIR, hasConsented, listWraps, saveConsent } from './store'
 import { pickInTerminal } from './terminalPicker'
 
@@ -60,7 +61,7 @@ function stop(message = 'No problem. Nothing was made.'): never {
 }
 
 async function askConsent(): Promise<void> {
-  note(copy.WELCOME_LINES.join('\n'), copy.WELCOME_TITLE)
+  note(copy.welcomeLines(installerAddedToPath()).join('\n'), copy.WELCOME_TITLE)
   if (hasConsented(APP_DIR)) return
   const yes = await confirm({ message: 'Continue?' })
   if (isCancel(yes) || !yes) stop()

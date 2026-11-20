@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BETA_TAG, DONE, INTRO, MISSING_DB, WELCOME_LINES, accessSteps, historyLine, noAccess } from '../../src/app/copy'
+import { BETA_TAG, DONE, INTRO, MISSING_DB, accessSteps, historyLine, noAccess, welcomeLines } from '../../src/app/copy'
 
 describe('copy', () => {
   it('says how far back history goes', () => {
@@ -24,7 +24,7 @@ describe('copy', () => {
     expect(accessSteps('iTerm', true).join('\n')).toContain('tmux kill-server')
   })
   it('has no backticks in any wording', () => {
-    expect(WELCOME_LINES.join('')).not.toContain('`')
+    expect(welcomeLines(true).join('')).not.toContain('`')
     expect(MISSING_DB).not.toContain('`')
     expect(noAccess('iTerm')).not.toContain('`')
   })
@@ -41,6 +41,11 @@ describe('copy', () => {
   it('says it is a beta in the intro line', () => {
     expect(INTRO.trim()).toBe('iMessage Wrapped (beta)')
     expect(BETA_TAG).toBe('Beta')
+  })
+  it('mentions the startup file only when the installer added the line', () => {
+    expect(welcomeLines(true).join('\n')).toContain('Added  wrapped  to your shell\'s startup file')
+    expect(welcomeLines(false).join('\n')).not.toContain('startup file')
+    expect(welcomeLines(false)).toContain('• You see everything before you share anything')
   })
   it('ends with a plain done line and no feedback ask', () => {
     expect(DONE).toBe('All done ✓')

@@ -21,6 +21,18 @@ it('measures median reply time per person, within a chat and within 12 hours', (
 const T0 = Date.parse('2026-01-01T10:00:00Z')
 const at = (offsetMs: number) => new Date(T0 + offsetMs).toISOString()
 
+it('keeps a median under a minute to the second (0.01 min)', () => {
+  const stats = replyStats([
+    msg({ senderId: 'me', sentAt: at(0) }),
+    msg({ senderId: 'alex', sentAt: at(40 * 1000) }), // 40 s
+    msg({ senderId: 'me', sentAt: at(60 * 1000) }),
+    msg({ senderId: 'alex', sentAt: at(60 * 1000 + 43 * 1000) }), // 43 s
+    msg({ senderId: 'me', sentAt: at(2 * 60 * 1000) }),
+    msg({ senderId: 'alex', sentAt: at(2 * 60 * 1000 + 41 * 1000) }), // 41 s: the median
+  ])
+  expect(stats.medianReplyMinutesByPerson.alex).toBe(0.68) // 41 s / 60, rounded to 0.01
+})
+
 it("a double text doesn't reset the clock", () => {
   const stats = replyStats([
     msg({ senderId: 'me', sentAt: '2026-01-01T10:00:00Z' }),

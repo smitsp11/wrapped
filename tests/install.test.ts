@@ -5,6 +5,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { installerAddedToPath, startupFiles } from '../src/app/shellStartup'
 
 const SCRIPT = path.resolve('site/install.sh')
 let dir: string
@@ -92,6 +93,7 @@ describe('install.sh', () => {
     expect(execFileSync(bin, { encoding: 'utf8' })).toBe('fake wrapped 1.0.0\n')
     const rc = fs.readFileSync(path.join(home, '.zshrc'), 'utf8')
     expect(rc.match(/added by iMessage Wrapped/g)).toHaveLength(1)
+    expect(installerAddedToPath(startupFiles(home, home))).toBe(true) // the welcome then says so
   })
   it('updates by running the install line again: the new program replaces the old, still one PATH line', async () => {
     const home = newHome()
@@ -159,6 +161,7 @@ describe('install.sh', () => {
     expect((await install(home, { shell: '/bin/bash' })).stdout).toContain('type:  wrapped')
     expect(fs.readFileSync(path.join(home, '.profile'), 'utf8')).toContain(MARK)
     expect(fs.existsSync(path.join(home, '.bash_profile'))).toBe(false)
+    expect(installerAddedToPath(startupFiles(home, home))).toBe(true)
   })
   it('creates .bash_profile for bash when none exist', async () => {
     const home = newHome()
@@ -171,6 +174,7 @@ describe('install.sh', () => {
     expect((await install(home, { env: { ZDOTDIR: zdot } })).status).toBe(0)
     expect(fs.readFileSync(path.join(zdot, '.zshrc'), 'utf8')).toContain(MARK)
     expect(fs.existsSync(path.join(home, '.zshrc'))).toBe(false)
+    expect(installerAddedToPath(startupFiles(home, zdot))).toBe(true)
   })
   it('edits no startup file for other shells and says what to add', async () => {
     const home = newHome()
@@ -180,6 +184,7 @@ describe('install.sh', () => {
     expect(r.stdout).toContain(`Next time run:  ${binOf(home)}`)
     expect(r.stdout).not.toContain('type:  wrapped')
     expect(fs.readdirSync(home)).toEqual(['.imessage-wrapped'])
+    expect(installerAddedToPath(startupFiles(home, home))).toBe(false) // so the welcome doesn't claim it
   })
   it('still installs when the startup file is read-only', async () => {
     const home = newHome()

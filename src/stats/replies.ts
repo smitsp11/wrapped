@@ -26,7 +26,8 @@ export function replyStats(messages: Message[]): ReplyStats {
   const medianReplyMinutesByPerson: Record<string, number> = {}
   const repliesByPerson: Record<string, number> = {}
   for (const [person, list] of Object.entries(replyMinutesByPerson)) {
-    medianReplyMinutesByPerson[person] = Math.round(median(list) * 10) / 10
+    // To 0.01 min (under a second): enough for the slide to show seconds, short enough for the link.
+    medianReplyMinutesByPerson[person] = Math.round(median(list) * 100) / 100
     repliesByPerson[person] = list.length
   }
   return { medianReplyMinutesByPerson, repliesByPerson }

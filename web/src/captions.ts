@@ -9,15 +9,12 @@ export type CaptionFacts =
   /** The busiest hour (0–23) and how many messages were sent in it. */
   | { slide: 'hours'; peakHour: number; peakCount: number }
   | { slide: 'streak'; days: number }
-  /** The fastest typical reply on the fastest-replies slide, in minutes. */
-  | { slide: 'replies'; fastestMinutes: number }
 
 /** Two shares this close (in percentage points) count as a tie. */
 const NECK_AND_NECK_POINTS = 2
 /** The leader is this many times the runner-up or more. */
 const NOT_CLOSE_RATIO = 1.5
 const LONG_STREAK_DAYS = 100
-const FAST_REPLY_MINUTES = 1
 
 export function caption(facts: CaptionFacts): string | null {
   switch (facts.slide) {
@@ -35,7 +32,5 @@ export function caption(facts: CaptionFacts): string | null {
       return null
     case 'streak':
       return facts.days >= LONG_STREAK_DAYS ? "(that's dedication)" : null
-    case 'replies':
-      return facts.fastestMinutes <= FAST_REPLY_MINUTES ? '(fast thumbs)' : null
   }
 }

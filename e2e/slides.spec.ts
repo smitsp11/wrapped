@@ -24,6 +24,7 @@ async function tapUntilOutro(page: Page): Promise<void> {
 test('the landing page explains who can make a wrap and opens the demo', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByText('Open Terminal on your Mac and paste')).toBeVisible()
+  await expect(page.getByText("the year's almost over. who did you actually text the most?")).toBeVisible()
   await expect(page.locator('[data-beta-tag]')).toHaveText('Beta')
   await page.getByRole('link', { name: 'See a demo' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
@@ -159,6 +160,39 @@ test('long names and quotes never overflow a slide', async ({ page }) => {
   expect(sawHits).toBe(true)
 })
 
+test('long names are never hyphenated: one line on ranked cards, and an award winner fits its name', async ({ page }) => {
+  const wrap = demo()
+  // Fake names. p1 wins several awards in the demo, so its one long word is a winner too.
+  const long: Wrap = { ...wrap, people: { ...wrap.people, p1: 'BARTHOLOMEW', p2: 'Maximiliana Featherstonehaugh' } }
+  await page.goto(`/#${await packWrap(long)}`)
+  const slide = page.getByTestId('slide')
+  let sawBars = false
+  let sawWinner = false
+  for (let i = 0; i < 40; i++) {
+    const names = await slide.evaluate((el) =>
+      [...el.querySelectorAll('.bars .name, .winner')].map((name) => {
+        const style = getComputedStyle(name)
+        const lines = Math.round(name.getBoundingClientRect().height / parseFloat(style.lineHeight))
+        return { text: name.textContent!, winner: name.classList.contains('winner'), hyphens: style.hyphens, lines }
+      }),
+    )
+    for (const name of names) {
+      expect(name.hyphens, `"${name.text}" may be hyphenated`).not.toBe('auto')
+      if (!name.winner) {
+        sawBars = true
+        expect(name.lines, `"${name.text}" wraps on a ranked card`).toBe(1)
+      } else if (name.text === 'BARTHOLOMEW') {
+        sawWinner = true
+        expect(name.lines, 'a one-word winner breaks mid-word').toBe(1)
+      }
+    }
+    if ((await currentSlide(page)) === 'outro') break
+    await page.keyboard.press('ArrowRight')
+  }
+  expect(sawBars).toBe(true)
+  expect(sawWinner).toBe(true)
+})
+
 test('landing shows the install line', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('pre.command')).toContainText('curl -fsSL')
@@ -181,7 +215,7 @@ test('the page has link-preview tags pointing at the og image', async ({ page })
   expect(await meta('meta[property="og:url"]')).toBe('https://wrapped.smitpatel.xyz/')
   expect(await meta('meta[name="twitter:card"]')).toBe('summary_large_image')
   expect(await meta('meta[property="og:title"]')).toBeTruthy()
-  expect(await meta('meta[property="og:description"]')).toBeTruthy()
+  expect(await meta('meta[property="og:description"]')).toMatch(/^the year's almost over\. who did you actually text the most\?/)
   const og = await page.request.get('/og.png')
   expect(og.headers()['content-type']).toBe('image/png')
 })

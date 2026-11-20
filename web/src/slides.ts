@@ -11,7 +11,7 @@ const MAX_QUOTES = 3
 const MAX_SIGNATURES = 6
 /** the smallest bar stays visible */
 const MIN_BAR_PERCENT = 2
-/** a median over a handful of replies says little, so fewer than this don't make the fastest-replies list */
+/** a median over a handful of replies says little, so fewer than this don't make the fastest-repliers list */
 const MIN_REPLIES_FOR_FASTEST = 5
 /** the id buildWrap gives the solo "Everyone else" bucket */
 
@@ -41,6 +41,11 @@ export function periodLabel(period: { from: string; to: string }): string {
   last.setUTCDate(last.getUTCDate() - 1)
   const day = (date: Date) => `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}`
   return `${day(new Date(`${period.from}T00:00:00Z`))} → ${day(last)}`
+}
+
+/** Characters in the longest word, so CSS can size a name to fit its longest word on one line. */
+function longestWord(text: string): number {
+  return Math.max(1, ...text.split(/\s+/).map((word) => [...word].length))
 }
 
 /** A handwritten aside under a heading, or nothing. */
@@ -170,10 +175,10 @@ export function buildSlides(wrap: Wrap): Slide[] {
   )
   const replies = ranked(experienced, 'asc')
   if (replies.length > 0) {
-    const note = caption({ slide: 'replies', fastestMinutes: replies[0]!.value })
+    // Each person's median reply time, so one slow night doesn't count against them. The aside says it's typical, not one reply.
     slides.push({
       id: 'replies',
-      html: `<h2>Fastest replies</h2>${aside(note)}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
+      html: `<h2>Fastest repliers</h2>${aside('(typical reply time)')}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
     })
   }
 
@@ -194,13 +199,14 @@ export function buildSlides(wrap: Wrap): Slide[] {
   if (hits) slides.push(hits)
 
   for (const award of wrap.awards) {
+    const winner = personName(wrap, award.personId)
     slides.push({
       id: `award-${award.id}`,
       html: `<p class="hand-title">and the award for…</p>
         <div class="stage">
           <div class="stamp"><span>CERTIFIED</span><h2>${escapeHtml(award.title)}</h2><span>${year}</span></div>
           <p class="hand">goes to</p>
-          <p class="big winner">${escapeHtml(personName(wrap, award.personId))}</p>
+          <p class="big winner" style="--len:${longestWord(winner)}">${escapeHtml(winner)}</p>
           <p class="chip">${escapeHtml(award.label)}</p>
         </div>
         ${HINT}`,
@@ -211,7 +217,7 @@ export function buildSlides(wrap: Wrap): Slide[] {
     id: 'outro',
     html: `<h2 class="huge">That's a wrap</h2><p class="aside">see you next year</p>
       <div class="stage">
-        <p class="note taped">Made with iMessage Wrapped. This page lives in the link itself: nothing was stored on a server.</p>
+        <p class="note taped">Made with iMessage Wrapped.</p>
       </div>`,
   })
   return slides

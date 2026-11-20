@@ -87,6 +87,7 @@ test('your wraps: preview, untick a quote, next, done', async ({ page }) => {
   await mockApi(page, ['a-1-2026', 'b-2-2026'])
   await page.goto('/maker.html?t=tok#/wraps?ids=a-1-2026,b-2-2026')
   await expect(page.getByText('1 of 2')).toBeVisible()
+  await expect(page.getByText('Your word: "omw"')).toBeVisible()
   const frame = page.locator('iframe.phone')
   const before = await frame.getAttribute('src')
   await page.locator('input[data-hit="0"]').uncheck()
@@ -144,7 +145,7 @@ async function slowSecondPack(page: Page) {
     let calls = 0
     Response.prototype.arrayBuffer = async function (this: Response) {
       const buffer = await original.call(this)
-      if (++calls === 2) await new Promise((resolve) => setTimeout(resolve, 700))
+      if (++calls === 2) await new Promise((resolve) => setTimeout(resolve, 1500))
       return buffer
     }
   })
@@ -167,7 +168,7 @@ test('your wraps: two quick ticks, the slower earlier redraw does not win', asyn
   await page.goto('/maker.html?t=tok#/wraps?ids=a-1-2026')
   await page.locator('input[data-hit="0"]').uncheck()
   await page.locator('input[data-hit="1"]').uncheck()
-  await page.waitForTimeout(1200)
+  await page.waitForTimeout(2000)
   const texts = (await linkOf(page)).greatestHits.map((h) => h.text)
   expect(texts).toEqual(['TWOQUOTE'])
   await expect(page.locator('input[data-hit="0"]')).not.toBeChecked()
@@ -181,7 +182,7 @@ test('your wraps: Done is not painted over by a pending redraw', async ({ page }
   await page.locator('input[data-hit="0"]').uncheck()
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByText('All done ✓')).toBeVisible()
-  await page.waitForTimeout(1200)
+  await page.waitForTimeout(2000)
   await expect(page.getByText('All done ✓')).toBeVisible()
   await expect(page.locator('iframe.phone')).toHaveCount(0)
 })
@@ -193,9 +194,9 @@ test('your wraps: a tick on wrap A during Next never changes wrap B', async ({ p
   await page.goto('/maker.html?t=tok#/wraps?ids=a-1-2026,b-2-2026')
   await page.getByRole('button', { name: /Next:/ }).click()
   // Wrap A is still on screen while B's slow redraw runs. Tick A's flagged quote.
-  await page.locator('input[data-hit="0"]').check()
-  await page.waitForTimeout(1200)
-  await expect(page.getByText('2 of 2')).toBeVisible()
+  await expect(page.getByText('1 of 2')).toBeVisible()
+  await page.locator('section[data-wrap="a-1-2026"] input[data-hit="0"]').check()
+  await expect(page.getByText('2 of 2')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('input[data-hit="0"]')).not.toBeChecked()
   expect((await linkOf(page)).greatestHits.map((h) => h.text)).toEqual(['fine quote'])
 })

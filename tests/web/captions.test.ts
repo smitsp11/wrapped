@@ -37,14 +37,9 @@ describe('caption: peak hour', () => {
   })
 })
 
-describe('caption: streak and replies', () => {
+describe('caption: streak', () => {
   it('marks a streak of 100 days or more', () => {
     expect(caption({ slide: 'streak', days: 100 })).toBe("(that's dedication)")
     expect(caption({ slide: 'streak', days: 99 })).toBeNull()
-  })
-  it('marks a typical reply of a minute or less', () => {
-    expect(caption({ slide: 'replies', fastestMinutes: 1 })).toBe('(fast thumbs)')
-    expect(caption({ slide: 'replies', fastestMinutes: 0.5 })).toBe('(fast thumbs)')
-    expect(caption({ slide: 'replies', fastestMinutes: 2 })).toBeNull()
   })
 })

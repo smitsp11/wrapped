@@ -54,7 +54,8 @@ function showLanding(): void {
       <div class="landing-grid">
         <p class="kicker"><span class="beta" data-beta-tag>${BETA_TAG}</span></p>
         <h1>iMessage Wrapped <span class="hand">for your group chats</span></h1>
-        <p class="lede">Made on your Mac. Nothing is uploaded. Watch it on any phone.</p>
+        <p class="lede"><span class="hook">the year's almost over. who did you actually text the most?</span>
+          <span class="trust">Made on your Mac. Watch it on any phone.</span></p>
         ${LANDING_COLLAGE}
         <div class="note taped install">
           <p>Open <b>Terminal</b> on your Mac and paste:</p>

@@ -94,7 +94,7 @@ export async function renderWraps(app: HTMLElement, state: State, ids: string[])
               .map(
                 ([pid, word]) => `
               <label><input type="checkbox" data-sig="${escapeHtml(pid)}"${review.droppedSignatures.has(pid) ? '' : ' checked'} />
-                <span>${escapeHtml(name(pid))}'s word: "${escapeHtml(word)}"</span></label>`,
+                <span>${pid === 'me' ? 'Your' : `${escapeHtml(name(pid))}'s`} word: "${escapeHtml(word)}"</span></label>`,
               )
               .join('')}
             ${dropped.length > 0 ? `<p class="warn">Left out ${dropped.length} more quote(s) so the link isn't too long.</p>` : ''}

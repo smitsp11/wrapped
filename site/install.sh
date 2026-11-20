@@ -15,6 +15,7 @@ main() {
   DOWNLOAD="${WRAPPED_DOWNLOAD:-https://github.com/smitsp11/wrapped/releases/download/v$RELEASE}"
   APP_DIR="$HOME/.imessage-wrapped"
   BIN_DIR="$APP_DIR/bin"
+  # src/app/shellStartup.ts looks for this mark (and these files) before the welcome says the line was added.
   MARK="# added by iMessage Wrapped"
   TMP=""
   trap 'rm -rf "${TMP:-}"' EXIT
