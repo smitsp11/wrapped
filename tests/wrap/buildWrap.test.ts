@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EmptyPeriodError } from '../../src/errors'
+import { countWords } from '../../src/stats/words'
 import { buildWrap } from '../../src/wrap/buildWrap'
 import { msg, react } from '../../fixtures/messages'
 
@@ -22,6 +23,18 @@ describe('buildWrap', () => {
     expect(wrap.volume.byPerson).toEqual({ p2: 1, p1: 2, me: 1 })
     expect(JSON.stringify(wrap)).not.toContain('+1416')
     expect(wrap.period).toEqual({ from: '2026-01-01', to: '2027-01-01' })
+  })
+
+  it('picks group top words against the baseline and never shows a name', () => {
+    const say = (senderId: string, text: string, n: number) =>
+      Array.from({ length: n }, (_, i) => msg({ senderId, text, sentAt: `2026-03-01T10:${String(i).padStart(2, '0')}:00Z` }))
+    const chat = [...say('+14165550101', 'pizza, ramen, alex, taylor', 10), ...say('me', 'pizza, ramen, alex, taylor', 10)]
+    const otherChats = say('+14165550199', 'pizza', 59).map((m) => ({ ...m, chatId: 2 }))
+    const options = { mode: 'group', title: 'Test', ...period, nameFor, hiddenNames: ['Taylor Morgan'] } as const
+    // Alex Chen is in the wrap and Taylor is in hiddenNames, so neither name is a top word
+    expect(buildWrap(chat, options).words.topWords.map((w) => w.word)).toEqual(['pizza', 'ramen'])
+    const wordBaseline = countWords([...chat, ...otherChats])
+    expect(buildWrap(chat, { ...options, wordBaseline }).words.topWords.map((w) => w.word)).toEqual(['ramen'])
   })
 
   it('refuses an empty period', () => {

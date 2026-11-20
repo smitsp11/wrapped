@@ -3,7 +3,8 @@ import { NewerVersionError } from '../../src/errors'
 import { unpackWrap } from '../../src/share/pack'
 import { parseWrap } from '../../src/share/parseWrap'
 import type { Wrap } from '../../src/types'
-import { buildSlides, escapeHtml } from './slides'
+import { closeConvo, isConvoOpen, openConvo } from './convo'
+import { buildSlides, escapeHtml, longestWord } from './slides'
 
 const app = document.querySelector<HTMLElement>('#app')!
 
@@ -30,19 +31,29 @@ async function loadDemo(): Promise<Wrap> {
 
 /** Leaves story mode: no taps or keys until a wrap is playing again. */
 function stopPlaying(): void {
+  closeConvo()
   document.onclick = null
   document.onkeydown = null
+  document.onpointerdown = null
+  document.onpointermove = null
+  document.onpointerup = null
+  document.onpointercancel = null
+  document.oncontextmenu = null
 }
+
+/** How long a press on a greatest hit lasts before it opens the conversation, and how far it may drift. */
+const HOLD_MS = 450
+const HOLD_SLOP_PX = 10
 
 /** The scrapbook pieces beside the landing copy. Made-up numbers from the demo chat, and decorative only. */
 const LANDING_COLLAGE = `
   <div class="collage" aria-hidden="true">
-    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">302</p><p>messages</p></div><p class="hand">Poker Night</p></div>
+    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">320</p><p>messages</p></div><p class="hand">Poker Night</p></div>
     <ol class="bars">
-      <li><span class="rank">1</span><span class="name">Alex</span><span class="bar" style="--w:100%"></span><span class="value">29.8%</span></li>
-      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:89%"></span><span class="value">26.5%</span></li>
+      <li><span class="rank">1</span><span class="name">Alex</span><span class="bar" style="--w:100%"></span><span class="value">29.1%</span></li>
+      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:86%"></span><span class="value">25.0%</span></li>
     </ol>
-    <div class="stamp"><span>CERTIFIED</span><strong>Main Character</strong><span>2026</span></div>
+    <div class="stamp"><span>CERTIFIED</span><strong style="--len:${longestWord('Main Character')}">Main Character</strong><span>2026</span></div>
     <p class="hand caption">(a made-up demo chat)</p>
   </div>`
 
@@ -55,10 +66,10 @@ function showLanding(): void {
         <p class="kicker"><span class="beta" data-beta-tag>${BETA_TAG}</span></p>
         <h1>iMessage Wrapped <span class="hand">for your group chats</span></h1>
         <p class="lede"><span class="hook">the year's almost over. who did you actually text the most?</span>
-          <span class="trust">Made on your Mac. Watch it on any phone.</span></p>
+          <span class="trust">Watch it on any phone.</span></p>
         ${LANDING_COLLAGE}
         <div class="note taped install">
-          <p>Open <b>Terminal</b> on your Mac and paste:</p>
+          <p>Open <b>Terminal</b> and paste:</p>
           <pre class="command"><code>${escapeHtml(command)}</code></pre>
           <button class="button" data-copy-command>Copy</button>
         </div>
@@ -89,6 +100,7 @@ function showError(title: string, message: string): void {
 }
 
 function play(wrap: Wrap): void {
+  closeConvo()
   const slides = buildSlides(wrap)
   let index = 0
   /** Which way the last move went, so going back turns the page the other way. */
@@ -104,9 +116,52 @@ function play(wrap: Wrap): void {
       <div class="progress">${slides.map((_, i) => `<span class="${i <= index ? 'done' : ''}"></span>`).join('')}</div>
       <section class="slide" data-testid="slide" data-slide="${slide.id}" data-dir="${direction}">${slide.html}</section>`
   }
+  // A greatest hit opens its conversation from its "see the convo" link, or by pressing and holding the card, like
+  // long-pressing a message. A plain tap on the card turns the page like any other tap.
+  const openHit = (card: HTMLElement) =>
+    openConvo(wrap, wrap.greatestHits[Number(card.dataset.convo)]!, app, card.querySelector<HTMLElement>('.see-convo') ?? card)
+  let hold: { timer: number; x: number; y: number } | null = null
+  /** Set when a hold opened a conversation, so the click that ends the hold doesn't also turn the page. */
+  let held = false
+  const cancelHold = () => {
+    if (hold) window.clearTimeout(hold.timer)
+    hold = null
+  }
+  document.onpointerdown = (event) => {
+    held = false
+    cancelHold()
+    const card = (event.target as Element).closest<HTMLElement>('[data-convo]')
+    if (!card || event.button !== 0 || isConvoOpen()) return
+    const timer = window.setTimeout(() => {
+      hold = null
+      held = true
+      openHit(card)
+    }, HOLD_MS)
+    hold = { timer, x: event.clientX, y: event.clientY }
+  }
+  document.onpointermove = (event) => {
+    if (hold && Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > HOLD_SLOP_PX) cancelHold()
+  }
+  document.onpointerup = cancelHold
+  document.onpointercancel = cancelHold
+  // A long press on a card shouldn't bring up the browser's own menu.
+  document.oncontextmenu = (event) => {
+    if ((event.target as Element).closest('[data-convo]')) event.preventDefault()
+  }
+
   // Like Instagram stories: tap the left third of the card to go back, anywhere else to go forward.
   document.onclick = (event) => {
+    // The dialog keeps its own taps; anything else that gets here while it's open, or right after a hold, is ignored.
+    if (isConvoOpen() || held) {
+      held = false
+      return
+    }
     const target = event.target as Element
+    const link = target.closest('.see-convo')?.closest<HTMLElement>('[data-convo]')
+    if (link) {
+      openHit(link)
+      return
+    }
     if (target.closest('[data-restart]')) {
       event.preventDefault()
       index = 0
@@ -121,11 +176,16 @@ function play(wrap: Wrap): void {
     go(event.clientX < card.left + card.width / 3 ? -1 : 1)
   }
   document.onkeydown = (event) => {
+    // While a conversation is open, keys belong to it: Escape closes it and nothing flips the page underneath.
+    if (isConvoOpen()) {
+      if (event.key === 'Escape') closeConvo()
+      return
+    }
     if (event.key === 'ArrowRight') go(1)
     if (event.key === 'ArrowLeft') go(-1)
     if (event.key === 'Escape') location.hash = ''
-    // Space and Enter on a focused link should still activate the link.
-    if ((event.key === ' ' || event.key === 'Enter') && !(event.target as Element).closest('a')) {
+    // Space and Enter on a focused link or button should still activate it.
+    if ((event.key === ' ' || event.key === 'Enter') && !(event.target as Element).closest('a, button')) {
       event.preventDefault()
       go(1)
     }

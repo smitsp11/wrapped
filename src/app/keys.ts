@@ -1,7 +1,7 @@
 export type KeyAction = 'open' | 'quit'
 
 /** What to do when the keyboard can't be read. */
-export const NO_KEYBOARD = 'Open a new Terminal window and type: wrapped'
+export const NO_KEYBOARD = "Couldn't read the keyboard here. In a new window, type:  wrapped"
 
 /**
  * Bun can't wait on a freshly opened /dev/tty on macOS (e.g. `exec wrapped < /dev/tty` from a piped script):

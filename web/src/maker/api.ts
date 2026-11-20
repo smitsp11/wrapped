@@ -19,7 +19,7 @@ export type State = {
   period: { label: string; year: number }
   solo: { wrapId: string; made: boolean }
   groups: GroupRow[]
-  /** what to call "You" in shared group wraps; '' keeps "You" */
+  /** what to call "You" in shared group wraps, from your own contact card; '' keeps "You" */
   senderName: string
   update: { current: string; latest: string } | null
 }

@@ -14,21 +14,22 @@
     "me": "You"
   },
   "volume": {
-    "total": 302,
+    "total": 320,
     "byPerson": {
-      "p1": 90,
-      "p2": 66,
+      "p1": 93,
+      "p2": 69,
       "me": 80,
-      "p4": 6,
-      "p3": 60
+      "p4": 10,
+      "p3": 68
     },
     "attachmentsByPerson": {
+      "p3": 1,
       "p2": 1
     }
   },
   "timing": {
     "byMonth": [
-      136,
+      154,
       141,
       25,
       0,
@@ -42,8 +43,8 @@
       0
     ],
     "byWeekday": [
-      41,
-      44,
+      48,
+      55,
       46,
       44,
       47,
@@ -69,9 +70,9 @@
       0,
       0,
       0,
+      8,
       0,
-      0,
-      212,
+      222,
       0,
       0,
       0
@@ -79,11 +80,11 @@
     "longestStreakDays": 61,
     "longestSilenceDays": 0,
     "lateNightShareByPerson": {
-      "p1": 0.3333333333333333,
+      "p1": 0.3225806451612903,
       "p2": 0,
       "me": 0,
       "p4": 0,
-      "p3": 1
+      "p3": 0.8823529411764706
     }
   },
   "replies": {
@@ -96,7 +97,7 @@
     "repliesByPerson": {
       "p2": 60,
       "me": 60,
-      "p4": 6,
+      "p4": 7,
       "p3": 60
     }
   },
@@ -105,71 +106,62 @@
       "p1": 60
     },
     "doubleTextsByPerson": {
-      "me": 20
+      "me": 20,
+      "p3": 1
     }
   },
   "reactions": {
     "givenByPerson": {
-      "p2": 61,
+      "p2": 62,
       "me": 31,
+      "p1": 2,
       "p3": 2,
-      "p4": 1,
-      "p1": 1
+      "p4": 1
     },
     "receivedByPerson": {
-      "p1": 63,
+      "p1": 64,
       "p3": 30,
+      "p4": 1,
       "me": 3
     },
     "laughsReceivedByPerson": {
-      "p1": 63
+      "p1": 64,
+      "p4": 1
     },
     "byType": {
-      "laugh": 63,
+      "laugh": 65,
       "love": 33
     }
   },
   "words": {
     "topWords": [
       {
-        "word": "sorry",
-        "count": 120
-      },
-      {
-        "word": "bet",
-        "count": 70
-      },
-      {
-        "word": "omw",
-        "count": 60
+        "word": "run it back",
+        "count": 50
       },
       {
         "word": "poker",
-        "count": 60
+        "count": 120
       },
       {
         "word": "rebuy",
-        "count": 60
+        "count": 90
       },
       {
-        "word": "tonight",
-        "count": 60
+        "word": "chips",
+        "count": 81
+      },
+      {
+        "word": "omw",
+        "count": 65
       },
       {
         "word": "classic",
-        "count": 30
+        "count": 31
       },
       {
-        "word": "jordan",
-        "count": 30
-      },
-      {
-        "word": "lol",
-        "count": 30
-      },
-      {
-        "word": "cards",
-        "count": 20
+        "word": "dealer",
+        "count": 11
       }
     ],
     "topEmoji": [
@@ -179,15 +171,15 @@
       }
     ],
     "signatureWordByPerson": {
-      "p1": "poker",
-      "p2": "bet",
+      "p1": "run it back",
+      "p2": "chips",
       "me": "omw",
-      "p4": "heyyy",
-      "p3": "sorry"
+      "p4": "dealer",
+      "p3": "rebuy"
     },
     "longestMessage": {
       "senderId": "p3",
-      "length": 27
+      "length": 46
     }
   },
   "greatestHits": [
@@ -196,14 +188,177 @@
       "text": "poker tonight?",
       "sentAt": "2026-01-12T20:00:00.000Z",
       "reactions": 4,
-      "laughs": 4
+      "laughs": 4,
+      "conversation": {
+        "messages": [
+          {
+            "senderId": "p1",
+            "text": "you good? you left in a hurry last night",
+            "sentAt": "2026-01-12T18:30:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "ok I'm officially retiring. selling everything",
+            "sentAt": "2026-01-12T18:32:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "",
+            "sentAt": "2026-01-12T18:33:00.000Z",
+            "media": "photo"
+          },
+          {
+            "senderId": "p2",
+            "text": "is that a ziploc of pennies",
+            "sentAt": "2026-01-12T18:35:00.000Z"
+          },
+          {
+            "senderId": "p4",
+            "text": "third retirement this month",
+            "sentAt": "2026-01-12T18:36:00.000Z",
+            "reactions": 1,
+            "laughs": 1
+          },
+          {
+            "senderId": "p3",
+            "text": "it's different this time. I've grown",
+            "sentAt": "2026-01-12T18:38:00.000Z"
+          },
+          {
+            "senderId": "p2",
+            "text": "proud of you honestly",
+            "sentAt": "2026-01-12T18:41:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "thank you. it's been a journey",
+            "sentAt": "2026-01-12T18:52:00.000Z"
+          },
+          {
+            "senderId": "p1",
+            "text": "poker tonight?",
+            "sentAt": "2026-01-12T20:00:00.000Z",
+            "reactions": 4,
+            "laughs": 4
+          },
+          {
+            "senderId": "p2",
+            "text": "bet, bringing poker chips 🃏",
+            "sentAt": "2026-01-12T20:04:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "...what time",
+            "sentAt": "2026-01-12T20:09:00.000Z"
+          },
+          {
+            "senderId": "p4",
+            "text": "aaand we're back",
+            "sentAt": "2026-01-12T20:10:00.000Z"
+          },
+          {
+            "senderId": "me",
+            "text": "omw",
+            "sentAt": "2026-01-12T20:14:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "unretiring. one night only",
+            "sentAt": "2026-01-12T20:16:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "sorry sorry, all in. rebuy?",
+            "sentAt": "2026-01-13T01:14:00.000Z"
+          }
+        ],
+        "hit": 8
+      }
     },
     {
       "senderId": "me",
       "text": "omw",
       "sentAt": "2026-01-25T20:14:00.000Z",
       "reactions": 3,
-      "laughs": 0
+      "laughs": 0,
+      "conversation": {
+        "messages": [
+          {
+            "senderId": "p1",
+            "text": "poker tonight?",
+            "sentAt": "2026-01-25T20:00:00.000Z",
+            "reactions": 1,
+            "laughs": 1
+          },
+          {
+            "senderId": "p2",
+            "text": "bet, bringing poker chips 🃏",
+            "sentAt": "2026-01-25T20:04:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "are we four or five this time",
+            "sentAt": "2026-01-25T20:06:00.000Z"
+          },
+          {
+            "senderId": "p4",
+            "text": "four. someone has been \"busy\" for three weeks",
+            "sentAt": "2026-01-25T20:08:00.000Z"
+          },
+          {
+            "senderId": "p1",
+            "text": "they said maybe. maybe means no",
+            "sentAt": "2026-01-25T20:09:00.000Z"
+          },
+          {
+            "senderId": "p2",
+            "text": "rip to a real one",
+            "sentAt": "2026-01-25T20:11:00.000Z"
+          },
+          {
+            "senderId": "me",
+            "text": "omw",
+            "sentAt": "2026-01-25T20:14:00.000Z",
+            "reactions": 3,
+            "hearts": 3
+          },
+          {
+            "senderId": "p3",
+            "text": "WAIT",
+            "sentAt": "2026-01-25T20:15:00.000Z"
+          },
+          {
+            "senderId": "p4",
+            "text": "pulling up a fifth chair",
+            "sentAt": "2026-01-25T20:15:00.000Z"
+          },
+          {
+            "senderId": "p1",
+            "text": "the prodigal texter returns",
+            "sentAt": "2026-01-25T20:16:00.000Z",
+            "reactions": 1,
+            "laughs": 1
+          },
+          {
+            "senderId": "p4",
+            "text": "dealer says: bringing the chips",
+            "sentAt": "2026-01-25T20:45:00.000Z"
+          },
+          {
+            "senderId": "p3",
+            "text": "sorry sorry, all in. rebuy?",
+            "sentAt": "2026-01-26T01:14:00.000Z",
+            "reactions": 1,
+            "hearts": 1
+          },
+          {
+            "senderId": "p1",
+            "text": "lol classic jordan rebuy, run it back",
+            "sentAt": "2026-01-26T01:15:00.000Z"
+          }
+        ],
+        "hit": 6
+      }
     }
   ],
   "awards": [
@@ -211,15 +366,15 @@
       "id": "main-character",
       "title": "Main Character",
       "personId": "p1",
-      "value": 29.8,
-      "label": "29.8% of all messages"
+      "value": 29.1,
+      "label": "29.1% of all messages"
     },
     {
       "id": "ghost",
       "title": "The Ghost",
       "personId": "p3",
       "value": 314,
-      "label": "median reply 5h 14m"
+      "label": "average reply 5h 14m"
     },
     {
       "id": "starter",
@@ -232,22 +387,22 @@
       "id": "comedian",
       "title": "The Comedian",
       "personId": "p1",
-      "value": 70,
-      "label": "70 laughs per 100 messages"
+      "value": 68.8,
+      "label": "68.8 laughs per 100 messages"
     },
     {
       "id": "hype",
       "title": "Hype Man",
       "personId": "p2",
-      "value": 61,
-      "label": "gave 61 reactions"
+      "value": 62,
+      "label": "gave 62 reactions"
     },
     {
       "id": "night-owl",
       "title": "Night Owl",
       "personId": "p3",
-      "value": 100,
-      "label": "100% of messages sent 12–5 AM"
+      "value": 88.2,
+      "label": "88.2% of messages sent 12–5 AM"
     },
     {
       "id": "double-texter",

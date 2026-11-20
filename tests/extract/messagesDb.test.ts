@@ -120,6 +120,48 @@ describe('MessagesDb on isolated files', () => {
     }
   })
 
+  it("reads each attachment's type (MIME, else UTI), and does without it on databases that lack the tables", () => {
+    const f = makeFakeDb(freshDir(), { hitConversations: true })
+    const attachmentTypes = (reader: MessagesDb) =>
+      reader.messageRows({ chatIds: [f.groupChatId], ...YEAR }).filter((r) => r.hasAttachment).map((r) => r.attachmentType)
+    let reader = MessagesDb.open(openNodeSqlite, f.path)
+    try {
+      expect(attachmentTypes(reader)).toEqual(['image/heic', 'com.apple.quicktime-movie']) // a photo on Jan 12, a video on Jan 15
+      expect(reader.messageRows({ chatIds: [f.groupChatId], ...YEAR }).filter((r) => !r.hasAttachment).every((r) => r.attachmentType === null)).toBe(true)
+    } finally {
+      reader.close()
+    }
+    const writer = new Database(f.path)
+    writer.exec('DROP TABLE message_attachment_join')
+    writer.close()
+    reader = MessagesDb.open(openNodeSqlite, f.path)
+    try {
+      expect(attachmentTypes(reader)).toEqual([null, null])
+    } finally {
+      reader.close()
+    }
+  })
+
+  it("reads Apple's group ids, and does without them on databases that lack the columns", () => {
+    const f = makeFakeDb(freshDir(), { splitGroups: true })
+    let reader = MessagesDb.open(openNodeSqlite, f.path)
+    try {
+      const linked = reader.listChats().find((c) => c.id === f.split!.linkedChatId)
+      expect(linked).toMatchObject({ groupId: 'FAKE-GROUP-chat200000000000000003', originalGroupId: 'FAKE-GROUP-chat200000000000000001' })
+    } finally {
+      reader.close()
+    }
+    const writer = new Database(f.path)
+    writer.exec('ALTER TABLE chat DROP COLUMN group_id; ALTER TABLE chat DROP COLUMN original_group_id')
+    writer.close()
+    reader = MessagesDb.open(openNodeSqlite, f.path)
+    try {
+      expect(reader.listChats().every((c) => c.groupId === '' && c.originalGroupId === '')).toBe(true)
+    } finally {
+      reader.close()
+    }
+  })
+
   it('removes its temp copy on close()', () => {
     const f = makeFakeDb(freshDir())
     const spy = vi.spyOn(fs, 'mkdtempSync')
@@ -157,7 +199,7 @@ describe('MessagesDb on isolated files', () => {
     fs.chmodSync(f.path, 0o000)
     try {
       expect(() => MessagesDb.open(openNodeSqlite, f.path)).toThrow(NoFullDiskAccessError)
-      expect(() => MessagesDb.open(openNodeSqlite, f.path)).toThrow('open a new Terminal window and type  wrapped  again')
+      expect(() => MessagesDb.open(openNodeSqlite, f.path)).toThrow('click "Quit & Reopen", then type  wrapped  again')
     } finally {
       fs.chmodSync(f.path, 0o644)
     }

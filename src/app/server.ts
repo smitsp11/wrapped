@@ -3,7 +3,7 @@ import path from 'node:path'
 import { buildSelection, groupWrapId, soloWrapId, type Selection } from './build'
 import type { Presence } from './presence'
 import type { Session } from './session'
-import { listWraps, loadSenderName, loadWrap, saveSenderName } from './store'
+import { listWraps, loadWrap } from './store'
 import type { Update } from './update'
 
 export type ServerDeps = {
@@ -28,7 +28,6 @@ const TYPES: Record<string, string> = {
 }
 
 const MAX_LINK = 16 * 1024
-export const MAX_SENDER_NAME = 40
 const json = (body: unknown, status = 200) => Response.json(body, { status })
 const empty = (status: number) => new Response(null, { status })
 
@@ -70,12 +69,6 @@ export async function handle(req: Request, deps: ServerDeps): Promise<Response> 
     await deps.openMessages(body.link)
     return empty(204)
   }
-  if (req.method === 'POST' && url.pathname === '/api/sender-name') {
-    const body = (await req.json().catch(() => null)) as { name?: unknown } | null
-    if (typeof body?.name !== 'string' || body.name.trim().length > MAX_SENDER_NAME) return empty(400)
-    saveSenderName(deps.appDir, body.name.trim())
-    return empty(204)
-  }
   if (req.method === 'POST' && url.pathname === '/api/close') {
     deps.onClose()
     return empty(204)
@@ -93,10 +86,11 @@ function describe(deps: ServerDeps) {
     period: { label: period.label, year: period.year },
     solo: { wrapId: solo, made: saved.has(solo) },
     groups: groups.map((g) => {
-      const wrapId = groupWrapId(g.title, g.id, period.year)
+      const wrapId = groupWrapId(g.title, g.chatIds, period.year)
       return { ...g, wrapId, made: saved.has(wrapId) }
     }),
-    senderName: loadSenderName(deps.appDir) ?? deps.session.senderName(),
+    // Always your own contact card's name: a name saved by an older version's name field is ignored.
+    senderName: deps.session.senderName(),
     update: deps.update(),
   }
 }

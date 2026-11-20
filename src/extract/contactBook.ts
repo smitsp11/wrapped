@@ -47,7 +47,7 @@ function shortName(entry: ContactEntry): string | null {
 
 /** Maps Messages handles to names from the macOS Contacts databases. First match wins: the local database, then synced sources in name order. */
 export class ContactBook {
-  private readonly names = new Map<string, { full: string; short: string }>()
+  private readonly names = new Map<string, { full: string; short: string; isPerson: boolean }>()
 
   constructor(
     entries: ContactEntry[],
@@ -58,7 +58,8 @@ export class ContactBook {
       const key = normalizeHandle(entry.handle)
       const full = displayName(entry)
       const short = shortName(entry)
-      if (key && full && short && !this.names.has(key)) this.names.set(key, { full, short })
+      const isPerson = Boolean(entry.first?.trim() || entry.last?.trim() || entry.nickname?.trim())
+      if (key && full && short && !this.names.has(key)) this.names.set(key, { full, short, isPerson })
     }
   }
 
@@ -93,6 +94,11 @@ export class ContactBook {
   shortNameFor(handleId: string): string | null {
     const key = normalizeHandle(handleId)
     return key ? (this.names.get(key)?.short ?? null) : null
+  }
+
+  /** every person's full and short name (not businesses'), so a word that is just someone's name is never a top word */
+  allNames(): string[] {
+    return [...this.names.values()].filter((n) => n.isPerson).flatMap(({ full, short }) => [full, short])
   }
 
   /** number of handles (phones and emails) with a name */

@@ -8,7 +8,7 @@ import { replyStats } from '../stats/replies'
 import { starterStats } from '../stats/starters'
 import { timingStats } from '../stats/timing'
 import { volumeStats } from '../stats/volume'
-import { wordStats } from '../stats/words'
+import { type WordCounts, wordStats } from '../stats/words'
 import { OTHERS_ID } from '../types'
 import type { Chat, Message, Wrap } from '../types'
 
@@ -21,6 +21,10 @@ export type BuildOptions = {
   nameFor: (handle: string) => string
   /** solo mode: chats with display names, for the top-chats slide */
   chats?: Chat[]
+  /** group mode: countWords over every chat in the period, so top words are what's special to this chat */
+  wordBaseline?: WordCounts
+  /** names never shown as top or signature words (everyone in Contacts, and you), besides the people in the wrap */
+  hiddenNames?: readonly string[]
 }
 
 const TOP_CHATS = 5
@@ -57,9 +61,10 @@ export function buildWrap(all: Message[], options: BuildOptions): Wrap {
   const reactions = reactionStats(messages)
 
   // Solo: hits are your own messages, but everyone's reactions count, so rank over all messages with one id per person.
+  // Only a group wrap carries the conversation around each hit: a solo wrap gets posted to stories.
   const hits = solo
     ? greatestHits(relabel(inPeriod, assignPersonIds(inPeriod))).filter((h) => h.senderId === 'me')
-    : greatestHits(messages)
+    : greatestHits(messages, { withConversations: true })
   // "Everyone else" is a sum of many people, so it never competes for awards.
   const awards = pickAwards({ volume, timing, replies, starters, reactions }, options.mode, solo ? [OTHERS_ID] : [])
 
@@ -75,7 +80,10 @@ export function buildWrap(all: Message[], options: BuildOptions): Wrap {
     starters,
     reactions,
     // Solo mode shows your own vocabulary, not words from everyone you texted.
-    words: wordStats(solo ? messages.filter((m) => m.senderId === 'me') : messages),
+    words: wordStats(solo ? messages.filter((m) => m.senderId === 'me') : messages, {
+      baseline: solo ? undefined : options.wordBaseline,
+      names: [...Object.values(people), ...(options.hiddenNames ?? [])],
+    }),
     greatestHits: hits,
     awards,
     topChats: solo ? topChats(messages, options.chats ?? []) : [],

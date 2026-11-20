@@ -6,6 +6,7 @@ import readline from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 // The demo command deliberately reuses the test fixture, so the demo and the tests show the same fake chat.
 import { makeFakeWrap } from '../fixtures/fakeWrap'
+import { defaultSenderName, macAccountName } from './app/senderName'
 import { findChat, isYes, looksLikeContactInfo, numbersToRemove, parseYear, slug } from './cliHelpers'
 import { BrokenLinkError, NewerVersionError, WrappedError } from './errors'
 import { ContactBook } from './extract/contactBook'
@@ -15,6 +16,7 @@ import { openNodeSqlite } from './extract/sqliteNode'
 import { fitToLimit } from './share/pack'
 import type { Hit } from './stats/greatestHits'
 import { parseWrap } from './share/parseWrap'
+import { countWords } from './stats/words'
 import type { Chat, Wrap } from './types'
 import { buildWrap } from './wrap/buildWrap'
 import { chatTitle, nameLookup, personLookup } from './wrap/names'
@@ -121,7 +123,9 @@ async function group(dbPath: string, query: string, year: number): Promise<void>
     const chat = findChat(loadChats(db, contacts), query)
     const { from, to } = yearRange(year)
     const { messages, undecodable } = normalizeRows(db.messageRows({ chatIds: [chat.id], from, to }))
-    const wrap = buildWrap(messages, { mode: 'group', title: chat.name, from, to, nameFor: nameLookup(contacts) })
+    const wordBaseline = countWords(normalizeRows(db.messageRows({ from, to })).messages)
+    const hiddenNames = [...contacts.allNames(), defaultSenderName(db.ownHandles(), contacts, macAccountName)]
+    const wrap = buildWrap(messages, { mode: 'group', title: chat.name, from, to, nameFor: nameLookup(contacts), wordBaseline, hiddenNames })
     report(saveWrap(wrap, `${slug(chat.name)}-${year}.json`), undecodable)
     await preview(wrap)
   })
@@ -133,7 +137,8 @@ async function solo(dbPath: string, year: number): Promise<void> {
     const chats = loadChats(db, contacts)
     const { from, to } = yearRange(year)
     const { messages, undecodable } = normalizeRows(db.messageRows({ from, to }))
-    const wrap = buildWrap(messages, { mode: 'solo', title: `Your ${year}`, from, to, nameFor: nameLookup(contacts), chats })
+    const hiddenNames = [...contacts.allNames(), defaultSenderName(db.ownHandles(), contacts, macAccountName)]
+    const wrap = buildWrap(messages, { mode: 'solo', title: `Your ${year}`, from, to, nameFor: nameLookup(contacts), chats, hiddenNames })
     report(saveWrap(wrap, `me-${year}.json`), undecodable)
     await preview(wrap)
   })

@@ -44,7 +44,7 @@ function showClosed(): void {
 }
 
 closeLink.addEventListener('click', async () => {
-  if (!confirm('Close iMessage Wrapped? Your wraps stay saved on this Mac.')) return
+  if (!confirm('Close iMessage Wrapped? Your wraps stay saved.')) return
   try {
     await api('/api/close', {})
   } catch {

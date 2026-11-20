@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildSlides, escapeHtml, periodLabel } from '../../web/src/slides'
+import { buildSlides, escapeHtml, periodLabel, sentLabel } from '../../web/src/slides'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
 import { withSenderName } from '../../src/share/senderName'
 
@@ -64,6 +64,32 @@ describe('buildSlides', () => {
     expect(slideHtml(wrap, 'hits')).toContain('2 reactions<')
   })
 
+  it('shows the five top words most-used first, whatever order they were picked in', () => {
+    const wrap = makeFakeWrap('group')
+    const counts = { win: 213, motive: 353, parlay: 233, bro: 90, cap: 400, extra: 999 }
+    wrap.words.topWords = Object.entries(counts).map(([word, count]) => ({ word, count }))
+    const shown = [...slideHtml(wrap, 'words').matchAll(/<span class="word">(\w+)<\/span>/g)].map((m) => m[1])
+    expect(shown).toEqual(['cap', 'motive', 'parlay', 'win', 'bro'])
+  })
+
+  it('makes each group quote with a conversation open it, with a handwritten "see the convo"', () => {
+    const wrap = makeFakeWrap('group')
+    wrap.greatestHits = [...wrap.greatestHits, { senderId: 'p1', text: 'no context', sentAt: '2026-02-01T00:00:00Z', reactions: 2, laughs: 0 }]
+    const html = slideHtml(wrap, 'hits')
+    expect(html.match(/<figure data-convo="\d">/g)).toEqual(['<figure data-convo="0">', '<figure data-convo="1">'])
+    expect(html.match(/class="see-convo"/g)).toHaveLength(2)
+    expect(html).toContain('aria-label="see the convo: Alex Chen, Jan 12, 8:00 PM" aria-haspopup="dialog">see the convo →</button>')
+    expect(html).toContain('<figure><blockquote>“no context”') // no conversation, nothing to open
+  })
+
+  it('never offers a conversation on a solo wrap, even if one sneaks in', () => {
+    const wrap = makeFakeWrap('solo')
+    wrap.greatestHits = makeFakeWrap('group').greatestHits.map((h) => ({ ...h, senderId: 'me' }))
+    const html = slideHtml(wrap, 'hits')
+    expect(html).not.toContain('data-convo')
+    expect(html).not.toContain('see the convo')
+  })
+
   it('lists at most 6 signature words', () => {
     const wrap = makeFakeWrap('group')
     wrap.words.signatureWordByPerson = Object.fromEntries(Array.from({ length: 9 }, (_, n) => [`p${n}`, `word${n}`]))
@@ -111,11 +137,11 @@ describe('buildSlides', () => {
     expect(widths[widths.length - 1]).toBeLessThan(100)
   })
 
-  it('titles the replies slide as the typical time to jump in and shows seconds under a minute', () => {
+  it('titles the replies slide as the average time to jump in and shows seconds under a minute', () => {
     const wrap = makeFakeWrap('group')
     wrap.replies.medianReplyMinutesByPerson.p2 = 0.68
     const html = slideHtml(wrap, 'replies')
-    expect(html).toContain('<h2>Fastest repliers</h2><p class="aside">(typical time to jump in)</p>')
+    expect(html).toContain('<h2>Fastest repliers</h2><p class="aside">(average time to jump in)</p>')
     expect(html.match(/class="aside"/g)).toHaveLength(1)
     expect(html).toContain('41 sec')
     expect(html).not.toContain('>0 min<')
@@ -191,7 +217,7 @@ describe('buildSlides', () => {
     const html = slideHtml(makeFakeWrap('group'), 'outro')
     expect(html).toContain('Made with iMessage Wrapped.')
     expect(html).toContain('make one for your group chat')
-    expect(html).toContain('<a class="button" href="/">Make yours (Mac)</a>')
+    expect(html).toContain('<a class="button" href="/">Make yours</a>')
     expect(html).toContain('data-restart>Watch again</a>')
     expect(html.match(/class="button"/g)).toHaveLength(1)
     expect(html).not.toMatch(/private|upload/i)
@@ -202,17 +228,19 @@ describe('buildSlides', () => {
     wrap.words.topEmoji = []
     const html = slideHtml(wrap, 'words')
     expect(html).not.toContain('Top emoji')
-    expect(html).toContain('Top words')
+    expect(html).toContain('<p class="label">Top words &amp; phrases</p>')
   })
 
   it('marks the hour chart decorative, titles awards with h2 and wraps quotes in figures', () => {
     const slides = buildSlides(makeFakeWrap('group'))
     const html = (id: string) => slides.find((s) => s.id === id)!.html
     expect(html('hours')).toContain('class="hours" aria-hidden="true"')
-    expect(html('award-ghost')).toContain('<h2>')
+    expect(html('award-ghost')).toContain('<h2 style="--len:5">The Ghost</h2>') // --len: its longest word, for the stamp's size
     expect(html('award-ghost')).not.toContain('<h1>')
-    expect(html('hits')).toContain('<figure><blockquote>')
+    expect(html('hits')).toContain('<figure data-convo="0"><blockquote>')
     expect(html('hits')).toContain('<figcaption>')
+    // When each quote was sent, in the viewer's time zone (UTC in these tests), without the year.
+    expect(html('hits')).toContain('<time datetime="2026-01-12T20:00:00.000Z">Jan 12, 8:00 PM</time>')
     expect(html('hits')).not.toContain('<cite>')
   })
 })
@@ -226,12 +254,12 @@ describe('buildSlides handwritten asides and shares', () => {
   })
 
   it('adds no aside when no rule holds', () => {
-    // The fake chat: 29.8% vs 26.5%, neither a tie nor a runaway.
+    // The fake chat: 29.1% vs 25.0%, neither a tie nor a runaway.
     expect(slideHtml(makeFakeWrap('group'), 'volume')).not.toContain('class="aside"')
   })
 
   it('shows each person as a share of the group chat, but counts in a solo wrap', () => {
-    expect(slideHtml(makeFakeWrap('group'), 'volume')).toContain('<span class="value">29.8%</span>')
+    expect(slideHtml(makeFakeWrap('group'), 'volume')).toContain('<span class="value">29.1%</span>')
     expect(slideHtml(makeFakeWrap('solo'), 'volume')).not.toContain('%</span>')
   })
 
@@ -273,3 +301,11 @@ describe('buildSlides edge cases', () => {
 function slideHtml(wrap: ReturnType<typeof makeFakeWrap>, id: string): string {
   return buildSlides(wrap).find((s) => s.id === id)!.html
 }
+
+describe('sentLabel', () => {
+  // The tests run in UTC (vitest.config.ts); the viewer's own time zone is used in a browser.
+  it('gives the month, day and time, without the year', () => {
+    expect(sentLabel('2026-01-12T20:00:00.000Z')).toBe('Jan 12, 8:00 PM')
+    expect(sentLabel('2026-07-04T00:05:00.000Z')).toBe('Jul 4, 12:05 AM')
+  })
+})

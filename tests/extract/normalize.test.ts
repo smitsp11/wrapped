@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { APPLE_EPOCH_MS } from '../../src/extract/appleTime'
-import { type MessageRow, normalizeRows } from '../../src/extract/normalize'
+import { type MessageRow, attachmentKind, normalizeRows } from '../../src/extract/normalize'
 import { makeAttributedBody } from '../../fixtures/attributedBody'
 
 function row(partial: Partial<MessageRow> & { id: number }): MessageRow {
@@ -13,6 +13,7 @@ function row(partial: Partial<MessageRow> & { id: number }): MessageRow {
     text: 'hi',
     body: null,
     hasAttachment: 0,
+    attachmentType: null,
     assocGuid: null,
     assocType: 0,
     assocEmoji: null,
@@ -55,7 +56,17 @@ describe('normalizeRows', () => {
 
   it('keeps attachment-only messages with null text', () => {
     const { messages } = normalizeRows([row({ id: 1, text: '\uFFFC', hasAttachment: 1 })])
-    expect(messages[0]).toMatchObject({ text: null, hasAttachment: true })
+    expect(messages[0]).toMatchObject({ text: null, hasAttachment: true, attachmentKind: 'attachment' })
+  })
+
+  it('says whether an attachment is a photo or a video, from its type', () => {
+    const kinds = normalizeRows([
+      row({ id: 1, text: '\uFFFC', hasAttachment: 1, attachmentType: 'image/heic' }),
+      row({ id: 2, text: '\uFFFC', hasAttachment: 1, attachmentType: 'video/quicktime' }),
+      row({ id: 3, text: '\uFFFC', hasAttachment: 1, attachmentType: 'application/pdf' }),
+      row({ id: 4, text: 'hi' }),
+    ]).messages.map((m) => m.attachmentKind)
+    expect(kinds).toEqual(['photo', 'video', 'attachment', undefined])
   })
 
   it('skips rows with no text and no attachment without counting them', () => {
@@ -158,5 +169,17 @@ describe('normalizeRows', () => {
       row({ id: 4, text: null, assocType: 3003, assocGuid: 'p:0/G1' }),
     ])
     expect(messages.slice(1).map((m) => m.id)).toEqual([3])
+  })
+})
+
+describe('attachmentKind', () => {
+  it.each([
+    ['image/jpeg', 'photo'], ['image/heic', 'photo'], ['IMAGE/PNG', 'photo'], ['public.jpeg', 'photo'], ['public.heic', 'photo'],
+    ['com.compuserve.gif', 'photo'],
+    ['video/mp4', 'video'], ['video/quicktime', 'video'], ['com.apple.quicktime-movie', 'video'], ['public.mpeg-4', 'video'],
+    ['public.mpeg-4-audio', 'attachment'], ['audio/x-m4a', 'attachment'], ['application/pdf', 'attachment'],
+    ['public.vcard', 'attachment'], ['', 'attachment'], [null, 'attachment'],
+  ] as const)('%s → %s', (type, kind) => {
+    expect(attachmentKind(type)).toBe(kind)
   })
 })

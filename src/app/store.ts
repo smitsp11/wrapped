@@ -54,20 +54,6 @@ export function listWraps(appDir: string): SavedWrap[] {
   return saved.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime())
 }
 
-/** The name to use for "You" in shared group wraps, as last typed on the wrap page. null: never set. '' keeps "You". */
-export function loadSenderName(appDir: string): string | null {
-  try {
-    return fs.readFileSync(path.join(appDir, 'sender-name'), 'utf8')
-  } catch {
-    return null
-  }
-}
-
-export function saveSenderName(appDir: string, name: string): void {
-  fs.mkdirSync(appDir, { recursive: true, mode: 0o700 })
-  fs.writeFileSync(path.join(appDir, 'sender-name'), name, { mode: 0o600 })
-}
-
 export function hasConsented(appDir: string): boolean {
   try {
     return fs.readFileSync(path.join(appDir, 'consent'), 'utf8').trim() === CONSENT_VERSION

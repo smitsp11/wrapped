@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { makeFakeDb, type FakeDb } from '../../fixtures/makeFakeDb'
+import { makeFakeDb, type FakeDb, type SplitGroups } from '../../fixtures/makeFakeDb'
 import { WrappedError } from '../../src/errors'
 import { buildSelection } from '../../src/app/build'
 import { fullYear } from '../../src/app/period'
@@ -41,6 +41,8 @@ describe('session', () => {
     const { wrap } = session.buildGroup(fake.groupChatId)
     expect(wrap.title).toBe('Poker Night')
     expect(wrap.volume.total).toBe(302)
+    // top words are compared with every chat in the period, as in fakeWrap
+    expect(wrap.words.topWords.map((w) => w.word)).toEqual(['run it back', 'poker', 'rebuy', 'chips', 'omw', 'classic', 'dealer'])
   })
   it('builds and saves picked wraps, reporting chats that fail', () => {
     const appDir = path.join(dir, 'app')
@@ -84,5 +86,49 @@ describe('session', () => {
     const other = openSession({ openSqlite: openNodeSqlite, dbPath: fake.path, contacts: new ContactBook([]), period: fullYear(2026), now: new Date(2026, 2, 10) })
     other.close()
     expect(() => other.close()).not.toThrow()
+  })
+})
+
+describe('a group Messages keeps as several chat rows', () => {
+  let split: SplitGroups
+  let merged: Session
+  beforeAll(() => {
+    const fakeSplit = makeFakeDb(fs.mkdtempSync(path.join(dir, 'split-')), { splitGroups: true })
+    split = fakeSplit.split!
+    merged = openSession({ openSqlite: openNodeSqlite, dbPath: fakeSplit.path, contacts: new ContactBook([]), period: fullYear(2026), now: new Date(2026, 2, 10) })
+  })
+  afterAll(() => merged.close())
+
+  it('is one row on the home page with every row counted; a same-named group of other people stays apart', () => {
+    const { mainChatId, smsChatId, linkedChatId, strangerChatId } = split
+    expect(merged.groups.map((g) => [g.title, g.chatIds])[0]).toEqual(['Poker Night', [fake.groupChatId]])
+    expect(merged.groups.filter((g) => g.title === 'Book Club').map((g) => [g.chatIds, g.messages])).toEqual([
+      [[mainChatId, smsChatId, linkedChatId], 31],
+      [[strangerChatId], 5],
+    ])
+  })
+  it('wraps every row: the total, streak and silence span them all', () => {
+    for (const chatId of [split.mainChatId, split.smsChatId]) {
+      const { wrap } = merged.buildGroup(chatId)
+      expect(wrap.title).toBe('Book Club')
+      expect(wrap.volume.total).toBe(31)
+      expect(wrap.timing.longestStreakDays).toBe(31) // main alone: 10
+      expect(wrap.timing.longestSilenceDays).toBe(1) // main alone: 11
+    }
+    expect(merged.buildGroup(split.strangerChatId).wrap.volume.total).toBe(5)
+  })
+  it('saves one wrap named by all its rows, whichever row is picked', () => {
+    const appDir = path.join(dir, 'app-split')
+    const { mainChatId, smsChatId, linkedChatId } = split
+    const result = buildSelection(merged, { kind: 'groups', chatIds: [mainChatId, smsChatId] }, appDir)
+    expect(result.ids).toEqual([`book-club-${mainChatId}-${smsChatId}-${linkedChatId}-2026`])
+  })
+  it('counts the group once among your top chats', () => {
+    const { wrap } = merged.buildSolo()
+    expect(wrap.topChats.slice(1)).toEqual([
+      { name: 'Book Club', messages: 31 },
+      { name: '+1 ••• ••• 0101', messages: 10 }, // the DM with Alex, masked without Contacts
+      { name: 'Book Club', messages: 5 },
+    ])
   })
 })

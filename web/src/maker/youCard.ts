@@ -1,7 +1,7 @@
 import { formatMinutes } from '../../../src/format'
 import type { Wrap } from '../../../src/types'
 import { type Personality, personalityFor } from '../../../src/wrap/personality'
-import { HAND, fitText, fontFor, splitTitle } from './cover'
+import { HAND, fitText, fontFor, splitTitle } from './canvasText'
 
 /**
  * The personal share card, "my 2026 in texts": your personality and your own numbers, nothing else.
@@ -62,11 +62,11 @@ export function youCardFrom(solo: Wrap): YouCard {
 
 export type CardStat = { value: string; label: string }
 
-/** The taped notes, in order: texts sent, peak hour, typical reply, streak (whichever the card has). */
+/** The taped notes, in order: texts sent, peak hour, average reply, streak (whichever the card has). */
 export function cardStats(card: YouCard): CardStat[] {
   const stats: CardStat[] = [{ value: card.textsSent.toLocaleString('en-US'), label: 'texts sent' }]
   if (card.peakHour) stats.push({ value: card.peakHour, label: 'peak hour' })
-  if (card.typicalReply) stats.push({ value: card.typicalReply, label: 'typical reply' })
+  if (card.typicalReply) stats.push({ value: card.typicalReply, label: 'average reply' })
   if (card.longestStreakDays) {
     const days = card.longestStreakDays.toLocaleString('en-US')
     stats.push({ value: `${days} days`, label: 'longest streak' })
@@ -127,7 +127,7 @@ const SHADOW = 'rgba(43, 33, 24, 0.15)'
 const NOTE_INKS = ['#C2410C', '#1D4ED8', '#15803D', '#7E22CE']
 const FOOTER = 'wrapped.smitpatel.xyz'
 
-/** Waits until the card's fonts are loaded for this text, as drawCover does. If they can't load, it uses the system font. */
+/** Waits until the card's fonts are loaded for this text, so the canvas draws with them. If they can't load, it uses the system font. */
 async function loadFonts(card: YouCard): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts) return
   const stats = cardStats(card).flatMap((s) => [s.value, s.label])

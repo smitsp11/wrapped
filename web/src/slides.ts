@@ -1,4 +1,5 @@
 import { formatMinutes } from '../../src/format'
+import { SHOWN_HITS } from '../../src/stats/greatestHits'
 import { caption } from './captions'
 import { OTHERS_ID } from '../../src/types'
 import type { Wrap } from '../../src/types'
@@ -7,8 +8,9 @@ export type Slide = { id: string; html: string }
 type Row = { name: string; value: number }
 
 const MAX_BARS = 6
-const MAX_QUOTES = 3
 const MAX_SIGNATURES = 6
+/** A top word longer than this doesn't fit beside the emoji note on the maker's 300px preview. */
+const LONG_WORD_CHARS = 7
 /** the smallest bar stays visible */
 const MIN_BAR_PERCENT = 2
 /**
@@ -46,8 +48,16 @@ export function periodLabel(period: { from: string; to: string }): string {
   return `${day(new Date(`${period.from}T00:00:00Z`))} → ${day(last)}`
 }
 
-/** Characters in the longest word, so CSS can size a name to fit its longest word on one line. */
-function longestWord(text: string): number {
+/**
+ * When a quote was sent, e.g. "Jan 12, 8:00 PM", in the viewer's own time zone, so it can be found in Messages.
+ * No year: a wrap covers one year.
+ */
+export function sentLabel(sentAt: string): string {
+  return new Date(sentAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+/** Characters in the longest word, so CSS can size a name or award title to fit its longest word on one line. */
+export function longestWord(text: string): number {
   return Math.max(1, ...text.split(/\s+/).map((word) => [...word].length))
 }
 
@@ -179,10 +189,10 @@ export function buildSlides(wrap: Wrap): Slide[] {
   const replies = ranked(experienced, 'asc')
   if (replies.length > 0) {
     // Each person's median time to join a conversation someone else started (timed from its first message), so one slow
-    // night doesn't count against them. The aside says it's typical, and that it's about jumping in, not every reply.
+    // night doesn't count against them. The aside calls it "average", the everyday word, and says it's about jumping in.
     slides.push({
       id: 'replies',
-      html: `<h2>Fastest repliers</h2>${aside('(typical time to jump in)')}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
+      html: `<h2>Fastest repliers</h2>${aside('(average time to jump in)')}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
     })
   }
 
@@ -208,7 +218,7 @@ export function buildSlides(wrap: Wrap): Slide[] {
       id: `award-${award.id}`,
       html: `<p class="hand-title">and the award for…</p>
         <div class="stage">
-          <div class="stamp"><span>CERTIFIED</span><h2>${escapeHtml(award.title)}</h2><span>${year}</span></div>
+          <div class="stamp"><span>CERTIFIED</span><h2 style="--len:${longestWord(award.title)}">${escapeHtml(award.title)}</h2><span>${year}</span></div>
           <p class="hand">goes to</p>
           <p class="big winner" style="--len:${longestWord(winner)}">${escapeHtml(winner)}</p>
           <p class="chip">${escapeHtml(award.label)}</p>
@@ -226,7 +236,7 @@ export function buildSlides(wrap: Wrap): Slide[] {
         <div class="note taped cta">
           <p class="made">Made with iMessage Wrapped.</p>
           <p class="hand">make one for your group chat</p>
-          <a class="button" href="/">Make yours (Mac)</a>
+          <a class="button" href="/">Make yours</a>
         </div>
         <a class="link" href="#" data-restart>Watch again</a>
       </div>`,
@@ -238,9 +248,12 @@ function wordsSlide(wrap: Wrap): Slide | null {
   const { topWords, topEmoji, signatureWordByPerson } = wrap.words
   if (topWords.length === 0 && topEmoji.length === 0) return null
   const emoji = topEmoji.slice(0, 5).map((e) => escapeHtml(e.emoji)).join(' ')
-  const wordItems = topWords
-    .slice(0, 5)
-    .map((w) => `<li>${escapeHtml(w.word)} <small>${w.count.toLocaleString('en-US')}</small></li>`)
+  // The five most distinctive words or phrases (see wordStats), shown most-used first so the counts read top to bottom.
+  const shownWords = topWords.slice(0, 5).sort((a, b) => b.count - a.count)
+  // On a narrow page a long word needs the whole width, so the emoji note moves under the list (see .word-notes.long).
+  const long = shownWords.some((w) => longestWord(w.word) > LONG_WORD_CHARS)
+  const wordItems = shownWords
+    .map((w) => `<li><span class="word">${escapeHtml(w.word)}</span> <small>${w.count.toLocaleString('en-US')}</small></li>`)
     .join('')
   const sent = (id: string) => (Object.hasOwn(wrap.volume.byPerson, id) ? wrap.volume.byPerson[id]! : 0)
   // Over the cap, keep the people who sent the most messages (the sort is stable, so ties keep their order).
@@ -258,8 +271,8 @@ function wordsSlide(wrap: Wrap): Slide | null {
     id: 'words',
     html: `<h2>${wrap.mode === 'group' ? "The group's vocabulary" : 'Your vocabulary'}</h2>
       <div class="stage">
-        <div class="word-notes">
-          ${wordItems ? `<div class="note lined"><p class="label">Top words</p><ol class="words">${wordItems}</ol></div>` : ''}
+        <div class="word-notes${long ? ' long' : ''}">
+          ${wordItems ? `<div class="note lined"><p class="label">Top words &amp; phrases</p><ol class="words">${wordItems}</ol></div>` : ''}
           ${emoji ? `<div class="note sticky taped"><p class="label">Top emoji</p><p class="emoji">${emoji}</p></div>` : ''}
         </div>
         ${signature ? `<ul class="signature">${signature}</ul>` : ''}
@@ -269,11 +282,19 @@ function wordsSlide(wrap: Wrap): Slide | null {
 
 function hitsSlide(wrap: Wrap): Slide | null {
   if (wrap.greatestHits.length === 0) return null
-  const quotes = wrap.greatestHits.slice(0, MAX_QUOTES).map((h) => {
+  const quotes = wrap.greatestHits.slice(0, SHOWN_HITS).map((h, i) => {
     const who = escapeHtml(personName(wrap, h.senderId))
+    // A group wrap's quote opens the conversation around it (see convo.ts). Solo wraps never carry one.
+    const convo = wrap.mode === 'group' && h.conversation !== undefined
+    const time = escapeHtml(sentLabel(h.sentAt))
     return (
-      `<figure><blockquote>“${escapeHtml(h.text)}”</blockquote>` +
-      `<figcaption>${who} · ${plural(h.reactions, 'reaction')}</figcaption></figure>`
+      `<figure${convo ? ` data-convo="${i}"` : ''}><blockquote>“${escapeHtml(h.text)}”</blockquote>` +
+      `<figcaption><span>${who} · ${plural(h.reactions, 'reaction')}</span>` +
+      `<time datetime="${escapeHtml(h.sentAt)}">${time}</time></figcaption>` +
+      (convo
+        ? `<button type="button" class="see-convo" aria-label="see the convo: ${who}, ${time}" aria-haspopup="dialog">see the convo →</button>`
+        : '') +
+      `</figure>`
     )
   })
   // Two or three quotes get a smaller type size so they fit.

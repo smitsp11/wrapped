@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
-import { hasConsented, listWraps, loadSenderName, loadWrap, saveConsent, saveSenderName, saveWrap } from '../../src/app/store'
+import { hasConsented, listWraps, loadWrap, saveConsent, saveWrap } from '../../src/app/store'
 
 let appDir: string
 beforeEach(() => (appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'store-test-'))))
@@ -47,13 +47,5 @@ describe('store', () => {
     expect(hasConsented(appDir)).toBe(false)
     saveConsent(appDir)
     expect(hasConsented(appDir)).toBe(true)
-  })
-  it('remembers the sender name, readable only by you', () => {
-    expect(loadSenderName(appDir)).toBeNull()
-    saveSenderName(appDir, 'Smit')
-    expect(loadSenderName(appDir)).toBe('Smit')
-    expect(fs.statSync(path.join(appDir, 'sender-name')).mode & 0o777).toBe(0o600)
-    saveSenderName(appDir, '')
-    expect(loadSenderName(appDir)).toBe('')
   })
 })

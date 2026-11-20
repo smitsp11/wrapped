@@ -84,6 +84,13 @@ describe('ContactBook', () => {
     expect(names.shortNameFor('4165550006')).toBe('Lee')
     expect(names.shortNameFor('+19995550000')).toBeNull()
   })
+  it('lists every person name, but not businesses', () => {
+    const names = new ContactBook([
+      entry({ first: 'Robert', last: 'Smith', nickname: 'Bob', handle: '4165550001' }),
+      entry({ org: 'Pizza Pizza', handle: '4165550002' }),
+    ])
+    expect(names.allNames()).toEqual(['Robert Smith', 'Bob'])
+  })
 })
 
 describe('ContactBook.fromMac', () => {

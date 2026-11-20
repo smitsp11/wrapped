@@ -26,7 +26,13 @@ export type Message = {
   reactionType: ReactionType | null
   reactionEmoji: string | null
   hasAttachment: boolean
+  /** set when hasAttachment: what kind the (first) attachment is, from its file type */
+  attachmentKind?: AttachmentKind
 }
+
+export const ATTACHMENT_KINDS = ['photo', 'video', 'attachment'] as const
+/** "attachment" is anything that isn't a photo or video (audio, a PDF, a contact card…), or a type we couldn't read. */
+export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number]
 
 export type Chat = {
   id: number

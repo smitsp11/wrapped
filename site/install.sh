@@ -73,7 +73,11 @@ main() {
       chmod 755 "$BIN_DIR/wrapped"
   ) || fail "$NO_ACCESS"
 
-  # Put ~/.imessage-wrapped/bin on PATH once, so later runs are just `wrapped`.
+  # Keep one line in the shell's startup file: it puts ~/.imessage-wrapped/bin on PATH, so later runs are
+  # just `wrapped`, and picks up after "Quit & Reopen" (only while ~/.imessage-wrapped/resume exists; the
+  # program checks the rest). src/app/shellStartup.ts has the same line as STARTUP_LINE; keep the two in sync.
+  # shellcheck disable=SC2016 # $HOME and $PATH must stay literal in the shell settings file
+  LINE='export PATH="$HOME/.imessage-wrapped/bin:$PATH"; if [ -f "$HOME/.imessage-wrapped/resume" ]; then "$HOME/.imessage-wrapped/bin/wrapped" --resume-check; fi '"$MARK"
   RC=""
   PATH_OK=""
   case "$(basename "${SHELL:-/bin/zsh}")" in
@@ -90,38 +94,48 @@ main() {
     *) printf "Add this to your shell's PATH: %s\n" "$BIN_DIR" ;;
   esac
   if [ -n "$RC" ]; then
-    if grep -qF "$MARK" "$RC" 2>/dev/null; then
+    if [ "$(grep -cF "$MARK" "$RC" 2>/dev/null)" = 1 ] && grep -qxF "$LINE" "$RC"; then
       PATH_OK=1
-    # shellcheck disable=SC2016 # $HOME and $PATH must stay literal in the shell settings file
-    elif { printf '\nexport PATH="$HOME/.imessage-wrapped/bin:$PATH" %s\n' "$MARK" >> "$RC"; } 2>/dev/null; then
+    elif grep -qF "$MARK" "$RC" 2>/dev/null; then
+      # An older install's line: swap in the current one where it is, and drop any extra copies. cat > keeps
+      # the file itself (a symlink stays a symlink) and its permissions.
+      if awk -v line="$LINE" -v mark="$MARK" 'index($0, mark) { if (!done) print line; done = 1; next } { print }' "$RC" > "$TMP/rc" 2>/dev/null &&
+        [ -s "$TMP/rc" ] && { cat "$TMP/rc" > "$RC"; } 2>/dev/null; then
+        PATH_OK=1
+      else
+        printf 'Could not update %s.\n' "$RC" >&2
+      fi
+    elif { printf '\n%s\n' "$LINE" >> "$RC"; } 2>/dev/null; then
       PATH_OK=1
     else
-      printf 'Could not update %s. Next time run: %s/wrapped\n' "$RC" "$BIN_DIR" >&2
+      printf 'Could not update %s.\n' "$RC" >&2
     fi
   fi
 
   rm -rf "$TMP"
   trap - EXIT
-  # Name the version in the message only if the program printed a plain one, like 0.1.0.
-  VERSION="$("$BIN_DIR/wrapped" --version < /dev/null 2> /dev/null || true)"
-  DONE="Installed."
-  case "$VERSION" in
-    *[!0-9A-Za-z.+-]*) ;;
-    [0-9]*.[0-9]*) DONE="Installed iMessage Wrapped $VERSION." ;;
-  esac
+  # The full path only when the line couldn't be added; otherwise `wrapped` works next time by itself.
   if [ -n "$PATH_OK" ]; then
-    printf '%s Next time, open a new Terminal window and type:  wrapped\n' "$DONE"
+    DONE="Installed."
   else
-    printf '%s Next time run:  %s/wrapped\n' "$DONE" "$BIN_DIR"
+    DONE="Installed. Next time run:  $BIN_DIR/wrapped"
   fi
-  [ "${WRAPPED_NO_RUN:-}" = 1 ] && exit 0
+  if [ "${WRAPPED_NO_RUN:-}" = 1 ]; then
+    printf '%s\n' "$DONE"
+    exit 0
+  fi
   # This script arrives through a pipe, so give the program the keyboard back. Bun can't wait on a
   # freshly opened /dev/tty on macOS (kqueue says EINVAL), so script(1) gives it a terminal of its own
   # and passes the keys through.
   if (: < /dev/tty) 2>/dev/null; then
+    if [ -n "$PATH_OK" ]; then
+      printf 'Installed. Opening it…\n'
+    else
+      printf '%s\nOpening it…\n' "$DONE"
+    fi
     exec script -q /dev/null "$BIN_DIR/wrapped" < /dev/tty
   else
-    printf 'To start it now, run: %s/wrapped\n' "$BIN_DIR"
+    printf '%s\nTo start it now, run:  %s/wrapped\n' "$DONE" "$BIN_DIR"
   fi
 }
 

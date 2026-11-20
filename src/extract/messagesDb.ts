@@ -14,15 +14,37 @@ export const DEFAULT_CHAT_DB = path.join(os.homedir(), 'Library', 'Messages', 'c
 const GROUP_STYLE = 43
 const MEMBER_SEPARATOR = '\u001f'
 
-const CHATS_SQL = `
+/** Older databases may lack group_id or original_group_id, so each is read only when the column exists. */
+const chatsSql = (columns: Set<string>) => `
   SELECT c.ROWID AS id, COALESCE(c.display_name, '') AS name, c.style AS style,
+    ${columns.has('group_id') ? "COALESCE(c.group_id, '')" : "''"} AS groupId,
+    ${columns.has('original_group_id') ? "COALESCE(c.original_group_id, '')" : "''"} AS originalGroupId,
     (SELECT COUNT(*) FROM chat_message_join j WHERE j.chat_id = c.ROWID) AS messageCount,
     (SELECT GROUP_CONCAT(h.id, char(31)) FROM chat_handle_join chj
        JOIN handle h ON h.ROWID = chj.handle_id WHERE chj.chat_id = c.ROWID) AS members
   FROM chat c
   ORDER BY messageCount DESC, c.ROWID`
 
-type ChatRow = { id: number; name: string; style: number; messageCount: number; members: string | null }
+type ChatRow = { id: number; name: string; style: number; groupId: string; originalGroupId: string; messageCount: number; members: string | null }
+
+/**
+ * A chat row plus Apple's ids for the group it belongs to ('' when missing). Messages can keep one group
+ * as several rows; rows that share these ids are the same group (see mergeGroupChats).
+ */
+export type DbChat = Chat & { groupId: string; originalGroupId: string }
+
+/**
+ * The type of a message's first attachment, for "📷 Photo" / "🎥 Video": its MIME type ("image/heic"), or its UTI
+ * ("public.jpeg") when that's empty. Only the type is read, never the file or its name. NULL when the database has no
+ * attachment tables (the message still counts as an attachment).
+ */
+function attachmentTypeSql(columns: Set<string>, hasJoin: boolean): string {
+  if (!hasJoin || !columns.has('mime_type') || !columns.has('uti')) return 'NULL'
+  return `CASE WHEN m.cache_has_attachments = 1 THEN (
+      SELECT COALESCE(NULLIF(a.mime_type, ''), a.uti) FROM message_attachment_join ma
+      JOIN attachment a ON a.ROWID = ma.attachment_id
+      WHERE ma.message_id = m.ROWID ORDER BY a.ROWID LIMIT 1) END`
+}
 
 export type RowQuery = { chatIds?: number[]; from: Date; to: Date }
 
@@ -32,6 +54,8 @@ export class MessagesDb {
     private readonly db: SqliteDb,
     private readonly tempDir: string,
     private readonly hasEmoji: boolean,
+    private readonly chatsQuery: string,
+    private readonly attachmentTypeQuery: string,
   ) {}
 
   static open(openSqlite: OpenSqlite, sourcePath: string = DEFAULT_CHAT_DB): MessagesDb {
@@ -50,8 +74,11 @@ export class MessagesDb {
       // Older macOS has no associated_message_emoji (it came with emoji tapbacks).
       const columns = db.all<{ name: string }>('PRAGMA table_info(message)')
       const hasEmoji = columns.some((c) => c.name === 'associated_message_emoji')
-      db.all(`${CHATS_SQL} LIMIT 0`) // fails here, not later, if this isn't a Messages database
-      return new MessagesDb(db, copy.dir, hasEmoji)
+      const chatsQuery = chatsSql(new Set(db.all<{ name: string }>('PRAGMA table_info(chat)').map((c) => c.name)))
+      db.all(`${chatsQuery} LIMIT 0`) // fails here, not later, if this isn't a Messages database
+      const attachmentColumns = new Set(db.all<{ name: string }>('PRAGMA table_info(attachment)').map((c) => c.name))
+      const hasJoin = db.all('PRAGMA table_info(message_attachment_join)').length > 0
+      return new MessagesDb(db, copy.dir, hasEmoji, chatsQuery, attachmentTypeSql(attachmentColumns, hasJoin))
     } catch (err) {
       try {
         db?.close()
@@ -64,19 +91,21 @@ export class MessagesDb {
     }
   }
 
-  listChats(): Chat[] {
-    return this.db.all<ChatRow>(CHATS_SQL).map((r) => ({
+  listChats(): DbChat[] {
+    return this.db.all<ChatRow>(this.chatsQuery).map((r) => ({
       id: r.id,
       name: r.name,
       isGroup: r.style === GROUP_STYLE,
       memberIds: r.members ? r.members.split(MEMBER_SEPARATOR) : [],
       messageCount: r.messageCount,
+      groupId: r.groupId,
+      originalGroupId: r.originalGroupId,
     }))
   }
 
   /**
    * Real messages (item_type 0) in [from, to), oldest first.
-   * A message joined to two chats comes back once per chat (rare; only matters without chatIds).
+   * A message joined to two of the chats comes back once per chat (rare; see oneChatPerGroup).
    */
   messageRows({ chatIds, from, to }: RowQuery): MessageRow[] {
     if (chatIds && chatIds.length === 0) return []
@@ -85,7 +114,8 @@ export class MessagesDb {
       SELECT m.ROWID AS id, m.guid AS guid, j.chat_id AS chatId, m.is_from_me AS isFromMe, h.id AS handle,
         m.date / 1000000 AS dateMs, m.text AS text,
         CASE WHEN m.text IS NULL OR m.text = '' THEN m.attributedBody END AS body,
-        m.cache_has_attachments AS hasAttachment, m.associated_message_guid AS assocGuid,
+        m.cache_has_attachments AS hasAttachment, ${this.attachmentTypeQuery} AS attachmentType,
+        m.associated_message_guid AS assocGuid,
         m.associated_message_type AS assocType, ${this.hasEmoji ? 'm.associated_message_emoji' : 'NULL'} AS assocEmoji
       FROM message m
       JOIN chat_message_join j ON j.message_id = m.ROWID

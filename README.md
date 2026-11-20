@@ -46,9 +46,9 @@ curl -fsSL https://wrapped.smitpatel.xyz | sh
 ```
 
 That's it. The installer downloads one program, checks it, and starts it. If your terminal app
-can't read Messages yet, it walks you through one switch in System Settings (Full Disk Access,
-[explained below](#why-full-disk-access)). Then it opens your wraps in the browser. Next time, open
-a new Terminal window and type `wrapped`.
+can't read Messages yet, it asks you to flip one switch in System Settings (Full Disk Access,
+[explained below](#why-full-disk-access)) and picks up by itself once macOS reopens your terminal.
+Then it opens your wraps in the browser. Next time, type `wrapped`.
 
 `wrapped` tells you when there's an update; run `wrapped update`.
 
@@ -72,11 +72,11 @@ Every slide is a number counted from your messages. Here's what a group chat's w
 | **Who talked the most** | Each person's share of the chat. |
 | **Peak hour** | The hour of the day the chat is busiest. |
 | **Longest streak** | The most days in a row with at least one message (and the longest silence, if the chat went quiet for 2+ days). |
-| **Fastest repliers** | How fast each person typically (median) joins a conversation someone else started, timed from its first message, for people who joined at least 5. |
+| **Fastest repliers** | How fast each person joins a conversation on average someone else started, timed from its first message, for people who joined at least 5. |
 | **Who starts the conversation** | Who sends the first message after 6+ hours of quiet. |
 | **Biggest reactors** | Who hands out the most tapbacks. |
 | **The group's vocabulary** | Top words, top emoji, and each person's signature word. |
-| **Greatest hits** | The chat's best messages, ranked by the reactions you all already gave. |
+| **Greatest hits** | The chat's best messages, ranked by the reactions you all already gave, with when each was sent. |
 | **Awards** | One stamped certificate per award (see below). |
 
 **My year** is the other kind of wrap: you and the 5 people who sent the most messages in your chats,
@@ -85,20 +85,13 @@ with your top chats, your own vocabulary and your own greatest hits.
 Everything happens on a page served by the program on your own Mac: pick My year or a group chat,
 watch it, and press **Send to group chat** (**Send in Messages** for My year). That copies the link
 and starts a new message with the link filled in; you pick the group and press send yourself. It
-never sends anything for you. In a group wrap, **Your name in the wrap** shows your name instead of
-"You". The line under it says what goes into the link; **Change** opens a tick box for every quote
-and signature word, so you can untick any of them.
+never sends anything for you. In a group wrap, your name from your own contact card shows instead of
+"You".
 
 <p align="center">
-  <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left. On the right, 'Your name in the wrap' set to Taylor, the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, the cover image with Copy cover image, and 'Includes stats, first names and 2 quotes · Hide' opened to a tick box beside every quote and signature word, one quote unticked with a warning that it looks like a phone number or email.">
+  <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left. Beside it, 'Group chat · 2026 so far', the title, '302 messages · 5 people', the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, then 'Now post yours' with a small share card, Save image, Copy image and Make another.">
   <br>
-  <sub>The wrap page on your Mac, just after Send. A quote that looks like it has a phone number starts unticked.</sub>
-</p>
-
-<p align="center">
-  <img src="docs/images/cover.png" width="300" alt="The cover image for Poker Night: 'our 2026, wrapped' in handwriting, the chat's name in big type, a round 302 messages badge, two award labels (Main Character: Alex Chen, The Ghost: Jordan Lee), and 'Tap the link to watch it'.">
-  <br>
-  <sub>The cover image you paste into the chat above the link.</sub>
+  <sub>The wrap page on your Mac, just after Send.</sub>
 </p>
 
 ### The awards
@@ -112,7 +105,7 @@ Each award comes from one number. To keep it fair:
 | Award | Goes to | Minimum |
 |:--|:--|:--|
 | **Main Character** | the biggest share of messages | none |
-| **The Ghost** | the slowest typical time to join a conversation someone else started | 1 hour, over at least 10 conversations joined |
+| **The Ghost** | the slowest average time to join a conversation someone else started | 1 hour, over at least 10 conversations joined |
 | **The Starter** | the most conversations started | 3 |
 | **The Comedian** | the most laughs received per message | 1 laugh per 100 messages |
 | **Hype Man** | the most reactions given | 3 |
@@ -125,7 +118,7 @@ My year wraps don't give Main Character or The Lurker.
 ## How your data stays private
 
 The short version: **your messages never leave your Mac.** The only thing that ever leaves is the
-link you choose to send, and you see everything in it first.
+link you choose to send, and you watch it before you send it.
 
 Here's what that means in practice:
 
@@ -143,10 +136,9 @@ Here's what that means in practice:
 - **No phone numbers or emails in a link.** People are stored as short ids with the names from your
   Contacts. Anyone who isn't in your Contacts shows up masked, like `+1 ••• ••• 4821` or
   `j•••@gmail.com`.
-- **You see what's in the link before you share it.** The page lists every quote (up to 10; the
-  slide shows the top 3) and every signature word that would go in, and you can untick any of them.
-  Quotes that look like they contain a phone number or email start unticked. Links are capped at
-  8,192 characters; if a wrap is too big, the least-reacted quotes are left out and marked on the page.
+- **You watch the wrap before you share it.** The preview on the page plays the exact link you send.
+  Quotes that look like they contain a phone number or email are left out. Links are capped at
+  8,192 characters; if a wrap is too big, the least-reacted quotes are left out.
 - **My year stays about you.** It names only you and your top 5 people. Everyone else is grouped as
   "Everyone else", and only your own words and quotes are used.
 - **Saved wraps stay on your Mac**, in `~/.imessage-wrapped/wraps`, readable only by your user account.
@@ -167,8 +159,11 @@ server copy to delete, so share it with the people it's about.
 macOS keeps the Messages database and the Contacts database behind Full Disk Access, and no program
 can give itself that permission. So if your terminal app doesn't have it yet, `wrapped` opens the
 right page in System Settings and tells you what to do: turn on your terminal app (Terminal, iTerm,
-Warp, VS Code…) in **System Settings → Privacy & Security → Full Disk Access**, click
-**Quit & Reopen**, then open a new Terminal window and type `wrapped` again.
+Warp, VS Code…) in **System Settings → Privacy & Security → Full Disk Access** and click
+**Quit & Reopen**. `wrapped` then starts again by itself in the reopened window. (Before opening
+Settings it leaves a note, `~/.imessage-wrapped/resume`, that the installer's shell startup line
+looks for. The next new shell in the same terminal app within 15 minutes deletes it and runs
+`wrapped` once.)
 
 Be aware that this lets anything you run in that terminal read those files, not just `wrapped`.
 You can switch it off again when you're done making wraps.
@@ -269,7 +264,7 @@ The site only serves the page that unpacks it.
 <summary><b>Can I take back a link I sent?</b></summary>
 
 No. There's nothing stored on a server to delete, because the wrap is inside the link itself.
-That's why the wrap page lists every quote under **Change** before you send the link.
+That's why the wrap page plays the whole wrap before you send the link.
 </details>
 
 <details>
@@ -301,8 +296,8 @@ rm -rf ~/.imessage-wrapped
 sed -i '' '/# added by iMessage Wrapped/d' ~/.zshrc
 ```
 
-That deletes the program, your saved wraps and the consent note, then removes the one `PATH` line the
-installer added. If you use bash, the line is in `~/.bash_profile` (or `~/.bash_login` or
+That deletes the program, your saved wraps and the consent note, then removes the one line the
+installer added (it puts `wrapped` on your `PATH`). If you use bash, the line is in `~/.bash_profile` (or `~/.bash_login` or
 `~/.profile`, whichever existed first), so run the `sed` line on that file instead. If you set
 `ZDOTDIR`, it's in `$ZDOTDIR/.zshrc`. Then turn off Full Disk Access for your terminal app if you no
 longer need it. Links you already sent keep working, because the wrap is inside the link.

@@ -1,33 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeFakeWrap } from '../../fixtures/fakeWrap'
-import { coverLines, fitText, splitTitle } from '../../web/src/maker/cover'
-
-describe('coverLines', () => {
-  it('describes a group wrap', () => {
-    const lines = coverLines(makeFakeWrap('group'))
-    expect(lines.hand).toBe('our 2026, wrapped')
-    expect(lines.title).toBe('Poker Night')
-    expect(lines.count).toBe('302')
-    expect(lines.countLabel).toBe('messages')
-    expect(lines.awards).toEqual([
-      { title: 'Main Character', name: 'Alex Chen' },
-      { title: 'The Ghost', name: 'Jordan Lee' },
-    ])
-  })
-  it('describes a solo wrap', () => {
-    expect(coverLines(makeFakeWrap('solo')).hand).toBe('my 2026, in texts')
-  })
-  it('says "message" for exactly one', () => {
-    const wrap = makeFakeWrap('group')
-    wrap.volume.total = 1
-    expect(coverLines(wrap).countLabel).toBe('message')
-  })
-  it('names an id missing from people "Someone"', () => {
-    const wrap = makeFakeWrap('group')
-    wrap.awards[0]!.personId = 'toString'
-    expect(coverLines(wrap).awards[0]!.name).toBe('Someone')
-  })
-})
+import { fitText, splitTitle } from '../../web/src/maker/canvasText'
 
 describe('splitTitle', () => {
   it('splits at the space nearest the middle', () => {

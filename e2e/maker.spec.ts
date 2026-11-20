@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { makeFakeWrap } from '../fixtures/fakeWrap'
-import { unpackWrap } from '../src/share/pack'
+import { MAX_LINK_CHARS, unpackWrap } from '../src/share/pack'
 import type { Wrap } from '../src/types'
 
 const SITE = 'https://wrapped.smitpatel.xyz'
@@ -58,7 +58,6 @@ async function mockApi(page: Page, mock: Mock = {}) {
   })
   await page.route('**/api/open-messages', (r) => r.fulfill({ status: 204 }))
   await page.route('**/api/close', (r) => r.fulfill({ status: 204 }))
-  await page.route('**/api/sender-name', (r) => r.fulfill({ status: 204 }))
 }
 
 const rows = (page: Page) => page.getByTestId('chat-row')
@@ -172,7 +171,6 @@ test('home: when the app answers with an error, the page says so', async ({ page
 test('maker UI never reassures about uploads or AI', async ({ page }) => {
   await mockApi(page)
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await page.getByRole('button', { name: 'Change' }).click()
   await page.getByRole('button', { name: 'Send to group chat' }).click()
   await expect(page.getByText('Now post yours')).toBeVisible()
   const text = (await page.locator('body').innerText()).toLowerCase()
@@ -193,107 +191,57 @@ async function linkOf(page: Page): Promise<Wrap> {
   return unpackWrap(src.slice(src.indexOf('#') + 1))
 }
 
-/** Makes the 2nd pack (the first redraw after the page loads) slow, so it finishes after later ones. */
-async function slowSecondPack(page: Page) {
+/** Makes the first pack (the link for the first wrap opened) slow, so it finishes after anything that happens next. */
+async function slowFirstPack(page: Page) {
   await page.addInitScript(() => {
     if (window !== window.top) return
     const original = Response.prototype.arrayBuffer
     let calls = 0
     Response.prototype.arrayBuffer = async function (this: Response) {
       const buffer = await original.call(this)
-      if (++calls === 2) await new Promise((resolve) => setTimeout(resolve, 1500))
+      if (++calls === 1) await new Promise((resolve) => setTimeout(resolve, 1500))
       return buffer
     }
   })
 }
 
-const openReview = (page: Page) => page.getByRole('button', { name: 'Change' }).click()
-
-test('wrap: what is in the link is one line; Change opens the tick boxes', async ({ page }) => {
-  await mockApi(page, { wrapFor: () => withHits(['one', 'two', 'three']) })
-  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await expect(page.getByText('Includes stats, first names and 3 quotes')).toBeVisible()
-  await expect(page.locator('input[data-hit]')).toHaveCount(0)
-  await openReview(page)
-  await expect(page.locator('input[data-hit]')).toHaveCount(3)
-  await expect(page.getByRole('button', { name: 'Hide' })).toHaveAttribute('aria-expanded', 'true')
-  const frame = page.locator('iframe.phone')
-  const before = await frame.getAttribute('src')
-  await page.locator('input[data-hit="0"]').uncheck()
-  await expect(frame).not.toHaveAttribute('src', before!)
-  await expect(page.getByText('Includes stats, first names and 2 quotes')).toBeVisible()
-  await page.getByRole('button', { name: 'Hide' }).click()
-  await expect(page.locator('input[data-hit]')).toHaveCount(0)
-})
-
-test('wrap: a quote with a phone number starts unticked and stays out of the link', async ({ page }) => {
-  await mockApi(page, { wrapFor: () => withHits(['call me at 416 555 0199', 'fine quote']) })
-  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await expect(page.getByText('Includes stats, first names and 1 quote ·')).toBeVisible()
-  expect((await linkOf(page)).greatestHits.map((h) => h.text)).toEqual(['fine quote'])
-  await openReview(page)
-  await expect(page.locator('input[data-hit="0"]')).not.toBeChecked()
-  await expect(page.getByText('looks like a phone number or email')).toBeVisible()
-})
-
-test('wrap: signature words are listed and a ticked box keeps keyboard focus', async ({ page }) => {
+test('wrap: Send is the only action, with no name field, cover image or quote list', async ({ page }) => {
   await mockApi(page)
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await expect(page.getByText('Your word: "omw"')).toBeVisible()
-  const box = page.locator('input[data-hit="0"]')
-  await box.focus()
-  await page.keyboard.press('Space')
-  await expect(box).not.toBeChecked()
-  await expect(box).toBeFocused()
-  const sig = page.locator('input[data-sig]').first()
-  await sig.focus()
-  await page.keyboard.press('Space')
-  await expect(sig).not.toBeChecked()
-  await expect(sig).toBeFocused()
+  const section = page.locator('section[data-wrap]')
+  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
+  await expect(section.getByRole('button')).toHaveCount(1)
+  await expect(section.locator('input, img')).toHaveCount(0)
+  for (const gone of ['Copy cover image', 'Change', 'Includes stats', 'Your name in the wrap']) await expect(page.getByText(gone)).toHaveCount(0)
 })
 
-test('wrap: two quick ticks, the slower earlier redraw does not win', async ({ page }) => {
-  await slowSecondPack(page)
-  await mockApi(page, { wrapFor: () => withHits(['ZEROQUOTE', 'ONEQUOTE', 'TWOQUOTE']) })
+test('wrap: quotes with a phone number or email stay out of the link; every other quote and signature word goes in', async ({ page }) => {
+  const wrap = withHits(['call me at 416 555 0199', 'fine quote', 'mail me at sam@example.com', 'another one'])
+  await mockApi(page, { wrapFor: () => wrap })
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await page.locator('input[data-hit="0"]').uncheck() // the 2nd pack: slow
-  await page.locator('input[data-hit="1"]').uncheck() // the 3rd: fast, and the one that counts
-  await page.waitForTimeout(2000)
-  expect((await linkOf(page)).greatestHits.map((h) => h.text)).toEqual(['TWOQUOTE'])
-  await expect(page.locator('input[data-hit="0"]')).not.toBeChecked()
-  await expect(page.locator('input[data-hit="1"]')).not.toBeChecked()
+  const link = await linkOf(page)
+  expect(link.greatestHits.map((h) => h.text)).toEqual(['fine quote', 'another one'])
+  expect(link.words.signatureWordByPerson).toEqual(wrap.words.signatureWordByPerson)
 })
 
-test('wrap: a tick on wrap A while wrap B opens never changes wrap B', async ({ page }) => {
-  await mockApi(page, { wrapFor: () => withHits(['call me at 416 555 0199', 'fine quote']) })
-  // Wrap B's wrap arrives slowly, so wrap A is still on screen after the page has moved on to B.
-  await page.route('**/api/wraps?ids=chat-2-2-2026', async (r) => {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    await r.fulfill({ json: { wraps: [{ id: 'chat-2-2-2026', wrap: withHits(['call me at 416 555 0199', 'fine quote']) }] } })
-  })
+test('wrap: a slow link for wrap A never lands on wrap B', async ({ page }) => {
+  await slowFirstPack(page)
+  await mockApi(page, { wrapFor: (id) => withHits([id === 'chat-1-1-2026' ? 'QUOTE A' : 'QUOTE B']) })
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await expect(page.locator('section[data-wrap="chat-1-1-2026"] input[data-hit="0"]')).toBeVisible()
+  await expect(page.locator('section[data-wrap="chat-1-1-2026"]')).toBeVisible()
   await page.evaluate(() => (location.hash = '#/wrap/chat-2-2-2026'))
-  // Wrap A is still on screen while B loads. Tick A's flagged quote.
-  await page.locator('section[data-wrap="chat-1-1-2026"] input[data-hit="0"]').check()
-  await expect(page.locator('section[data-wrap="chat-2-2-2026"]')).toBeVisible({ timeout: 10_000 })
-  await page.waitForTimeout(500)
-  await expect(page.locator('section[data-wrap="chat-1-1-2026"]')).toHaveCount(0)
-  expect((await linkOf(page)).greatestHits.map((h) => h.text)).toEqual(['fine quote'])
-  await openReview(page)
-  await expect(page.locator('input[data-hit="0"]')).not.toBeChecked()
+  await expect(page.locator('section[data-wrap="chat-2-2-2026"]')).toBeVisible()
+  expect((await linkOf(page)).greatestHits.map((h) => h.text)).toEqual(['QUOTE B'])
+  await page.waitForTimeout(2000) // wrap A's link is done by now
+  expect((await linkOf(page)).greatestHits.map((h) => h.text)).toEqual(['QUOTE B'])
 })
 
-test('wrap: a pending redraw does not paint over the closed page', async ({ page }) => {
-  await slowSecondPack(page)
+test('wrap: a link still being made does not paint over the closed page', async ({ page }) => {
+  await slowFirstPack(page)
   await mockApi(page)
   page.on('dialog', (d) => void d.accept())
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await page.locator('input[data-hit="0"]').uncheck() // the 2nd pack: slow
+  await expect(page.locator('section[data-wrap]')).toBeVisible()
   await page.getByRole('button', { name: 'Close iMessage Wrapped' }).click()
   await expect(page.getByText('iMessage Wrapped is closed.')).toBeVisible()
   await page.waitForTimeout(2000)
@@ -301,11 +249,10 @@ test('wrap: a pending redraw does not paint over the closed page', async ({ page
   await expect(page.locator('iframe.phone')).toHaveCount(0)
 })
 
-test('wrap: a very long unbroken quote does not scroll the page sideways', async ({ page }) => {
+test('wrap: a very long unbroken quote and title do not scroll the page sideways', async ({ page }) => {
   await mockApi(page, { wrapFor: () => ({ ...withHits(['x'.repeat(600), 'short']), title: 'T'.repeat(65) }) })
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await expect(page.locator('input[data-hit="0"]')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
 })
@@ -318,86 +265,103 @@ test('wrap: an id the app does not know says so', async ({ page }) => {
   await expect(rows(page)).toHaveCount(7)
 })
 
-test('wrap: quotes left out for length are shown as left out', async ({ page }) => {
+test('wrap: a wrap too big for one link leaves out its least-reacted quotes and can still be sent', async ({ page }) => {
   // Incompressible letters (no digits or @, so none look like contact info) push the link past the limit.
   const noise = () => Array.from({ length: 700 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 58))).join('')
   const wrap = withHits(Array.from({ length: 14 }, noise))
   await mockApi(page, { wrapFor: () => wrap })
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await expect(page.getByText('left out (link too long)').first()).toBeVisible()
-  const leftOut = page.locator('input[data-hit="13"]')
-  await expect(leftOut).toBeEnabled()
-  await expect(leftOut).toBeChecked() // user intent: still wanted, just not in the link right now
-  await leftOut.uncheck()
-  await expect(leftOut).not.toBeChecked()
-  await expect(page.locator('label.left-out', { has: leftOut })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
+  const kept = (await linkOf(page)).greatestHits.map((h) => h.text)
+  expect(kept.length).toBeGreaterThan(0)
+  expect(kept.length).toBeLessThan(14)
+  expect(kept).toEqual(wrap.greatestHits.slice(0, kept.length).map((h) => h.text)) // the first (most-reacted) ones stay
+  const src = (await page.locator('iframe.phone').getAttribute('src'))!
+  expect(src.length - src.indexOf('#') - 1).toBeLessThanOrEqual(MAX_LINK_CHARS)
 })
 
-test('wrap: a quote the user unticked while left out stays out when space frees up', async ({ page }) => {
-  const noise = () => Array.from({ length: 700 }, () => String.fromCharCode(65 + Math.floor(Math.random() * 58))).join('')
-  const wrap = withHits(Array.from({ length: 14 }, noise))
-  await mockApi(page, { wrapFor: () => wrap })
-  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await openReview(page)
-  await expect(page.getByText('left out (link too long)').first()).toBeVisible()
-  await page.locator('input[data-hit="13"]').uncheck()
-  for (let i = 0; i < 8; i++) {
-    await page.locator(`input[data-hit="${i}"]`).uncheck()
-    await expect(page.locator(`input[data-hit="${i}"]`)).not.toBeChecked()
+/** Where the wrap page's pieces sit, in page pixels. */
+async function wrapLayout(page: Page) {
+  const box = async (selector: string) => (await page.locator(selector).boundingBox())!
+  return {
+    phone: await box('iframe.phone'),
+    heading: await box('[data-heading]'),
+    send: await box('[data-send]'),
+    column: await box('.send-column'),
+    headingSize: await page.locator('[data-heading]').evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+    overflow: await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
   }
-  await page.waitForTimeout(300)
-  const texts = (await linkOf(page)).greatestHits.map((h) => h.text)
-  expect(texts).not.toContain(wrap.greatestHits[13]!.text)
-  expect(texts).toContain(wrap.greatestHits[8]!.text)
-  await expect(page.locator('input[data-hit="13"]')).not.toBeChecked()
-})
+}
 
-test('wrap: the sender is named instead of "You" in a shared group wrap, and the name is remembered', async ({ page }) => {
-  await mockApi(page, { state: { ...baseState, senderName: 'Smit' } })
-  const saved: unknown[] = []
-  await page.route('**/api/sender-name', async (r) => {
-    saved.push(r.request().postDataJSON())
-    await r.fulfill({ status: 204 })
-  })
-  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  const field = page.getByLabel('Your name in the wrap')
-  await expect(field).toHaveValue('Smit')
-  await expect.poll(async () => (await linkOf(page)).people.me).toBe('Smit') // the preview shows what friends see
-  await openReview(page)
-  await expect(page.getByText('Smit\'s word: "omw"')).toBeVisible()
-  await field.fill('Smitty')
-  await field.press('Enter')
-  await expect.poll(async () => (await linkOf(page)).people.me).toBe('Smitty')
-  await field.fill('')
-  await field.press('Tab')
-  await expect.poll(async () => (await linkOf(page)).people.me).toBe('You') // empty keeps "You"
-  await expect(page.getByText('Your word: "omw"')).toBeVisible()
-  expect(saved).toEqual([{ name: 'Smitty' }, { name: '' }])
-})
-
-test('wrap: My year keeps "You" and has no name field', async ({ page }) => {
-  await mockApi(page, { state: { ...baseState, senderName: 'Smit', solo: { wrapId: 'me-2026', made: true } } })
-  await page.goto('/maker.html?t=tok#/wrap/me-2026')
-  await expect(page.getByRole('button', { name: 'Send in Messages' })).toBeEnabled()
-  await expect(page.getByLabel('Your name in the wrap')).toHaveCount(0)
-  expect((await linkOf(page)).people.me).toBe('You')
-})
-
-test('send: a name typed just before Send goes into the link that is sent', async ({ page, context }) => {
+test('wrap: on a laptop the preview leads, with the title and Send beside it, centred on its height', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.setViewportSize({ width: 1440, height: 900 })
   await mockApi(page)
+  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
+  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
+  await expect(page.getByText('320 messages · 5 people')).toBeVisible()
+  const before = await wrapLayout(page)
+  expect(before.phone.width).toBeGreaterThan(280)
+  expect(before.phone.width).toBeLessThan(360)
+  expect(before.phone.height).toBeLessThan(700) // fits a laptop screen with the page around it
+  expect(before.heading.x).toBeGreaterThan(before.phone.x + before.phone.width) // beside, not above
+  expect(before.headingSize).toBeLessThanOrEqual(40)
+  expect(before.send.width).toBeLessThan(before.column.width * 0.8) // a normal button, not stretched across
+  const middle = (before.heading.y + before.send.y + before.send.height) / 2
+  expect(Math.abs(middle - (before.phone.y + before.phone.height / 2))).toBeLessThan(60)
+  await page.getByRole('button', { name: 'Send to group chat' }).click()
+  await expect(page.locator('img.you-card')).toHaveAttribute('src', /^data:image\/png/, { timeout: 10_000 })
+  const card = (await page.locator('img.you-card').boundingBox())!
+  expect(card.x).toBeGreaterThan(before.phone.x + before.phone.width) // under Send, beside the preview
+  expect(card.width).toBeLessThan(before.phone.width / 2)
+  expect((await wrapLayout(page)).overflow).toBeLessThanOrEqual(0)
+})
+
+test('wrap: on a phone it stacks title, preview, then Send, with no sideways scroll', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockApi(page)
+  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
+  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
+  const before = await wrapLayout(page)
+  expect(before.heading.y + before.heading.height).toBeLessThanOrEqual(before.phone.y)
+  expect(before.phone.y + before.phone.height).toBeLessThanOrEqual(before.send.y)
+  expect(before.phone.width).toBeLessThanOrEqual(390)
+  expect(before.overflow).toBeLessThanOrEqual(0)
+  await page.getByRole('button', { name: 'Send to group chat' }).click()
+  await expect(page.locator('img.you-card')).toHaveAttribute('src', /^data:image\/png/, { timeout: 10_000 })
+  expect((await wrapLayout(page)).overflow).toBeLessThanOrEqual(0)
+})
+
+test('wrap: a group wrap names the sender from their contact card, with no field to change it', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await mockApi(page, { state: { ...baseState, senderName: 'Smit' } })
   let opened: { link: string } | null = null
   await page.route('**/api/open-messages', async (r) => {
     opened = r.request().postDataJSON()
     await r.fulfill({ status: 204 })
   })
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
-  await page.getByLabel('Your name in the wrap').fill('Priya')
-  await page.getByRole('button', { name: 'Send to group chat' }).click() // the field's change fires on the way
+  await expect.poll(async () => (await linkOf(page)).people.me).toBe('Smit') // the preview shows what friends see
+  await expect(page.getByRole('textbox')).toHaveCount(0)
+  await expect(page.getByText('Your name in the wrap')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Send to group chat' }).click()
   await expect(page.getByText('Link copied · Messages is open')).toBeVisible()
-  expect((await unpackWrap(opened!.link.slice(opened!.link.indexOf('#') + 1))).people.me).toBe('Priya')
+  expect((await unpackWrap(opened!.link.slice(opened!.link.indexOf('#') + 1))).people.me).toBe('Smit')
+})
+
+test('wrap: with no contact card for the sender, a group wrap keeps "You"', async ({ page }) => {
+  await mockApi(page, { state: { ...baseState, senderName: '' } })
+  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
+  await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
+  expect((await linkOf(page)).people.me).toBe('You')
+})
+
+test('wrap: My year keeps "You"', async ({ page }) => {
+  await mockApi(page, { state: { ...baseState, senderName: 'Smit', solo: { wrapId: 'me-2026', made: true } } })
+  await page.goto('/maker.html?t=tok#/wrap/me-2026')
+  await expect(page.getByRole('button', { name: 'Send in Messages' })).toBeEnabled()
+  expect((await linkOf(page)).people.me).toBe('You')
 })
 
 // ---------- Send ----------
@@ -418,8 +382,8 @@ test('send: one button copies the link and opens Messages with it', async ({ pag
   const copied = await page.evaluate(() => navigator.clipboard.readText())
   expect(copied.startsWith(`${SITE}/#`)).toBe(true)
   expect(opened!.link).toBe(copied)
-  await page.getByRole('button', { name: 'Copy cover image' }).click()
-  await expect(page.getByText('Cover copied ✓')).toBeVisible()
+  expect((await linkOf(page)).title).toBe('Poker Night') // the preview plays the link that was sent
+  expect(opened!.link.slice(opened!.link.indexOf('#'))).toBe((await page.locator('iframe.phone').getAttribute('src'))!.slice('/index.html'.length))
 })
 
 test('send: when the clipboard is blocked, it says so plainly and still opens Messages', async ({ page }) => {
@@ -456,25 +420,6 @@ test('send: a failing Open Messages shows the error; the button is disabled whil
   await expect(page.getByText("Link copied, but Messages didn't open: The app answered 500.")).toBeVisible()
   await expect(send).toBeEnabled()
   await expect(send).toBeFocused()
-})
-
-test('send: unticking a quote after sending says the link changed', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  await mockApi(page)
-  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await page.getByRole('button', { name: 'Send to group chat' }).click()
-  await expect(page.getByText('Link copied · Messages is open')).toBeVisible()
-  await openReview(page)
-  await page.locator('input[data-hit="0"]').uncheck()
-  await expect(page.getByText('The link changed. Send it again.')).toBeVisible()
-  await page.getByRole('button', { name: 'Send to group chat' }).click()
-  await expect(page.getByText('Link copied · Messages is open')).toBeVisible()
-})
-
-test('send: the cover is an image', async ({ page }) => {
-  await mockApi(page)
-  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
-  await expect(page.locator('img.cover')).toHaveAttribute('src', /^data:image\/png/)
 })
 
 // ---------- After sending ----------

@@ -16,7 +16,7 @@ describe('pickAwards', () => {
   it('gives each award to the qualifying person with the best number', () => {
     expect(pickAwards(inputs).map((a) => [a.id, a.personId, a.value, a.label])).toEqual([
       ['main-character', 'a', 40, '40% of all messages'],
-      ['ghost', 'c', 600, 'median reply 10h 0m'],
+      ['ghost', 'c', 600, 'average reply 10h 0m'],
       ['starter', 'b', 30, 'started 30 conversations'],
       ['comedian', 'b', 40, '40 laughs per 100 messages'],
       ['hype', 'c', 80, 'gave 80 reactions'],

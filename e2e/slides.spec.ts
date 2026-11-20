@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { AWARD_TITLES } from '../src/awards/rules'
 import { MAX_LINK_CHARS, packWrap } from '../src/share/pack'
 import type { Wrap } from '../src/types'
 
@@ -15,6 +16,7 @@ async function tap(page: Page, x: number): Promise<void> {
 
 const currentSlide = (page: Page) => page.getByTestId('slide').getAttribute('data-slide')
 
+/** Taps the middle of each page, greatest hits included: only their "see the convo" link opens a conversation. */
 async function tapUntilOutro(page: Page): Promise<void> {
   const slide = page.getByTestId('slide')
   for (let i = 0; i < 40 && (await currentSlide(page)) !== 'outro'; i++) await tap(page, 0.8) // right = next
@@ -23,8 +25,11 @@ async function tapUntilOutro(page: Page): Promise<void> {
 
 test('the landing page explains who can make a wrap and opens the demo', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText('Open Terminal on your Mac and paste')).toBeVisible()
+  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
   await expect(page.getByText("the year's almost over. who did you actually text the most?")).toBeVisible()
+  // Mac comes up once, beside the install line, where it matters.
+  expect((await page.locator('.landing').innerText()).match(/\bMac\b/g)).toEqual(['Mac'])
+  await expect(page.getByText('Needs a Mac with Messages.')).toBeVisible()
   await expect(page.locator('[data-beta-tag]')).toHaveText('Beta')
   await page.getByRole('link', { name: 'See a demo' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
@@ -48,11 +53,13 @@ test('a packed link plays the wrap inside it', async ({ page }) => {
 
 test('a link ending in "-" or "_" still plays', async ({ page }) => {
   // Vary the title until the packed link ends in one of the URL-safe characters. Deterministic: same titles every run.
+  // Without the conversations the wrap is small enough that the title still changes how the link ends.
+  const small = { ...demo(), greatestHits: demo().greatestHits.map(({ conversation: _, ...hit }) => hit) }
   let title = ''
   let packed = ''
   for (let i = 0; i < 500 && !/[-_]$/.test(packed); i++) {
     title = `Linked Chat ${i}`
-    packed = await packWrap({ ...demo(), title })
+    packed = await packWrap({ ...small, title })
   }
   expect(packed).toMatch(/[-_]$/)
   await page.goto(`/#${packed}`)
@@ -106,10 +113,10 @@ test('Escape goes home, and taps there do nothing', async ({ page }) => {
   await page.goto('/#demo')
   await expect(page.getByTestId('slide')).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.getByText('Open Terminal on your Mac and paste')).toBeVisible()
+  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
   await page.mouse.click(300, 300)
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByText('Open Terminal on your Mac and paste')).toBeVisible()
+  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
   await expect(page.getByTestId('slide')).toHaveCount(0)
 })
 
@@ -117,9 +124,16 @@ test('the outro asks you to make your own and can watch again', async ({ page })
   await page.goto('/#demo')
   await tapUntilOutro(page)
   await expect(page.getByText('make one for your group chat')).toBeVisible()
-  const make = page.getByRole('link', { name: 'Make yours (Mac)' })
+  const make = page.getByRole('link', { name: 'Make yours', exact: true })
   await expect(make).toBeVisible()
   await expect(make).toHaveAttribute('href', '/')
+  // One line, even on a phone: its height is one line of text plus the padding.
+  const lines = await make.evaluate((el) => {
+    const style = getComputedStyle(el)
+    const text = el.getBoundingClientRect().height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+    return Math.round(text / parseFloat(style.lineHeight))
+  })
+  expect(lines).toBe(1)
   await page.getByRole('link', { name: 'Watch again' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
 })
@@ -194,6 +208,159 @@ test('long names are never hyphenated: one line on ranked cards, and an award wi
   }
   expect(sawBars).toBe(true)
   expect(sawWinner).toBe(true)
+})
+
+/**
+ * The title on a stamp, word by word: how many line boxes each word takes (1 = not broken), and its width as a share
+ * of the stamp's inside (its width less padding). Layout pixels, so the stamp's tilt doesn't matter. Runs in the page.
+ */
+function stampWords(el: Element, selector: string) {
+  const title = el.querySelector<HTMLElement>(selector)!
+  const stamp = title.closest<HTMLElement>('.stamp')!
+  const style = getComputedStyle(stamp)
+  const inside = stamp.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+  const text = title.firstChild!
+  const words: { word: string; boxes: number; share: number }[] = []
+  for (const match of text.textContent!.matchAll(/\S+/g)) {
+    const range = document.createRange()
+    range.setStart(text, match.index)
+    range.setEnd(text, match.index + match[0].length)
+    const probe = document.createElement('span')
+    probe.style.cssText = 'position: absolute; white-space: nowrap; font: inherit; letter-spacing: inherit'
+    probe.textContent = match[0]
+    title.append(probe)
+    words.push({ word: match[0], boxes: range.getClientRects().length, share: probe.offsetWidth / inside })
+    probe.remove()
+  }
+  return { title: title.textContent!, words }
+}
+
+/** Every word on one line, with room to spare: fonts render a little wider in some browsers (Safari broke "Characte / r"). */
+function expectWholeWords(stamp: ReturnType<typeof stampWords>) {
+  for (const { word, boxes, share } of stamp.words) {
+    expect(boxes, `"${word}" in "${stamp.title}" breaks across lines`).toBe(1)
+    expect(share, `"${word}" in "${stamp.title}" nearly fills the stamp`).toBeLessThanOrEqual(0.9)
+  }
+}
+
+// Phones (390, 375), the preview in the maker (300), and a laptop, where the page is a card in the middle.
+for (const [width, height] of [[390, 844], [375, 667], [300, 560], [1280, 720]] as const) {
+  test(`every award title fits its stamp without breaking a word (${width}×${height})`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.setViewportSize({ width, height })
+    const wrap = demo()
+    const awards = AWARD_TITLES.map(({ id, title }) => ({ ...wrap.awards[0]!, id, title }))
+    await page.goto(`/#${await packWrap({ ...wrap, awards })}`)
+    const slide = page.getByTestId('slide')
+    const seen: string[] = []
+    for (let i = 0; i < 40 && (await currentSlide(page)) !== 'outro'; i++) {
+      if ((await currentSlide(page))!.startsWith('award-')) {
+        const stamp = await slide.evaluate(stampWords, '.stamp h2')
+        seen.push(stamp.title)
+        expectWholeWords(stamp)
+      }
+      await page.keyboard.press('ArrowRight')
+    }
+    expect(seen).toEqual(AWARD_TITLES.map((a) => a.title))
+  })
+}
+
+for (const width of [390, 1280]) {
+  test(`the landing collage stamp keeps "Main Character" whole (${width} wide)`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto('/')
+    const stamp = await page.locator('.collage').evaluate(stampWords, '.stamp strong')
+    expect(stamp.title).toBe('Main Character')
+    expectWholeWords(stamp)
+  })
+}
+
+// A phone (390) and the preview in the maker (300).
+for (const [width, height] of [[390, 844], [300, 600]] as const) {
+  test(`each top word and its count stay on one line (${width}×${height})`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    const wrap = demo()
+    const topWords = [
+      { word: 'bro', count: 1224 }, { word: 'gotta', count: 336 }, { word: 'tonight', count: 120 },
+      { word: 'whatever', count: 98 }, { word: 'supercalifragilistic', count: 12 },
+    ]
+    await page.goto(`/#${await packWrap({ ...wrap, words: { ...wrap.words, topWords } })}`)
+    for (let i = 0; i < 40 && (await currentSlide(page)) !== 'words'; i++) await page.keyboard.press('ArrowRight')
+    const rows = await page.locator('.words li').evaluateAll((items) =>
+      items.map((li) => {
+        const el = li as HTMLElement
+        return { text: el.innerText, height: el.offsetHeight, line: parseFloat(getComputedStyle(el).lineHeight), overflow: el.scrollWidth - el.clientWidth }
+      }),
+    )
+    expect(rows).toHaveLength(5)
+    for (const row of rows) {
+      expect(row.height, `"${row.text}" wraps`).toBeLessThanOrEqual(row.line + 1)
+      expect(row.overflow, `"${row.text}" spills out of the card`).toBeLessThanOrEqual(0)
+    }
+    expect(rows[0]!.text).toMatch(/^bro\s+1,224$/)
+  })
+}
+
+// A phone, the maker's preview and a laptop: a phrase stays whole, on at most two ruled lines, its count on the first.
+for (const [width, height] of [[390, 844], [300, 600], [1440, 900]] as const) {
+  test(`a top phrase wraps between its words instead of being cut (${width}×${height})`, async ({ page }) => {
+    await page.setViewportSize({ width, height })
+    const wrap = demo()
+    const topWords = [
+      { word: 'aggressive cut down', count: 412 }, { word: 'run it back', count: 233 }, { word: 'bro', count: 90 },
+    ]
+    await page.goto(`/#${await packWrap({ ...wrap, words: { ...wrap.words, topWords } })}`)
+    for (let i = 0; i < 40 && (await currentSlide(page)) !== 'words'; i++) await page.keyboard.press('ArrowRight')
+    await expect(page.locator('.note.lined .label')).toHaveText('Top words & phrases')
+    const rows = await page.locator('.words li').evaluateAll((items) =>
+      items.map((li) => {
+        const word = li.querySelector('.word') as HTMLElement
+        const count = li.querySelector('small')!.getBoundingClientRect()
+        const line = parseFloat(getComputedStyle(li).lineHeight)
+        return {
+          text: word.innerText.replace(/\s+/g, ' '),
+          lines: Math.round(word.offsetHeight / line),
+          cut: word.scrollWidth - word.clientWidth,
+          countOnFirstLine: count.top < li.getBoundingClientRect().top + line,
+        }
+      }),
+    )
+    expect(rows.map((r) => r.text)).toEqual(['aggressive cut down', 'run it back', 'bro'])
+    for (const row of rows) {
+      expect(row.cut, `"${row.text}" is cut off`).toBeLessThanOrEqual(0)
+      expect(row.lines, `"${row.text}" takes too many lines`).toBeLessThanOrEqual(2)
+      expect(row.countOnFirstLine, `"${row.text}" count moved`).toBe(true)
+    }
+    const overflow = await page.getByTestId('slide').evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
+  })
+}
+
+test.describe('greatest hits show when each was sent', () => {
+  test.use({ timezoneId: 'America/Toronto' })
+  // A phone (390) and the preview in the maker (300).
+  for (const [width, height] of [[390, 844], [300, 600]] as const) {
+    test(`in the viewer's time zone, on one line (${width}×${height})`, async ({ page }) => {
+      await page.setViewportSize({ width, height })
+      const wrap = demo()
+      const hit = { senderId: 'p4', text: 'who is bringing chips tonight?', reactions: 12, laughs: 0 }
+      const greatestHits = [
+        { ...hit, sentAt: '2026-01-12T20:00:00.000Z' }, // 3:00 PM in Toronto
+        { ...hit, sentAt: '2026-11-30T04:59:00.000Z' }, // 11:59 PM the day before
+        { ...hit, sentAt: '2026-07-04T16:30:00.000Z' }, // summer time: 12:30 PM
+      ]
+      await page.goto(`/#${await packWrap({ ...wrap, greatestHits })}`)
+      for (let i = 0; i < 40 && (await currentSlide(page)) !== 'hits'; i++) await page.keyboard.press('ArrowRight')
+      const times = await page.locator('figcaption time').evaluateAll((items) =>
+        items.map((el) => ({ text: (el as HTMLElement).innerText, lines: Math.round((el as HTMLElement).offsetHeight / parseFloat(getComputedStyle(el).lineHeight)) })),
+      )
+      expect(times.map((t) => t.text)).toEqual(['Jan 12, 3:00 PM', 'Nov 29, 11:59 PM', 'Jul 4, 12:30 PM'])
+      for (const time of times) expect(time.lines, `"${time.text}" wraps`).toBe(1)
+      const overflow = await page.getByTestId('slide').evaluate((el) => el.scrollWidth - el.clientWidth)
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
+  }
 })
 
 test('landing shows the install line', async ({ page }) => {

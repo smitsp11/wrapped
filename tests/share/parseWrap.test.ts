@@ -49,4 +49,24 @@ describe('parseWrap', () => {
     expect(() => parseWrap({ version: 0 })).toThrow(BrokenLinkError)
     expect(() => parseWrap({ version: 'two' })).toThrow(BrokenLinkError)
   })
+
+  it('accepts a hit without a conversation, as in links made before conversations existed', () => {
+    const wrap = copyOf()
+    for (const hit of wrap.greatestHits) delete hit.conversation
+    expect(parseWrap(wrap).greatestHits.every((h) => h.conversation === undefined)).toBe(true)
+  })
+
+  it.each([
+    ['not an object', (c: any) => 'hello'],
+    ['a hit index past the end', (c: any) => ({ ...c, hit: c.messages.length })],
+    ['a fractional hit index', (c: any) => ({ ...c, hit: 0.5 })],
+    ['a sender that is not a person id', (c: any) => ({ ...c, messages: [{ ...c.messages[0], senderId: '+14165550101' }] })],
+    ['an unknown media kind', (c: any) => ({ ...c, messages: [{ ...c.messages[0], media: 'javascript:' }] })],
+    ['a reaction count that is a string', (c: any) => ({ ...c, messages: [{ ...c.messages[0], laughs: '2' }] })],
+    ['text that is missing', (c: any) => ({ ...c, messages: [{ senderId: 'p1', sentAt: c.messages[0].sentAt }] })],
+  ])('refuses a conversation with %s', (_label, breakIt) => {
+    const wrap = copyOf()
+    wrap.greatestHits[0].conversation = breakIt(wrap.greatestHits[0].conversation)
+    expect(() => parseWrap(wrap)).toThrow(BrokenLinkError)
+  })
 })

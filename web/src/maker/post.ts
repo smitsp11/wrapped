@@ -34,7 +34,7 @@ export function mountPost(slot: HTMLElement, state: State, isCurrent: () => bool
           <a class="button" data-save download="my-${year}-in-texts.png" aria-disabled="true">Save image</a>
           <button class="button secondary" data-copy-card disabled>Copy image</button>
           <p class="status" role="status" data-copy-status></p>
-          <button class="button another" data-another>Make another</button>
+          <button class="link another" data-another>Make another →</button>
         </div>
       </div>
     </section>`
@@ -69,7 +69,7 @@ export function mountPost(slot: HTMLElement, state: State, isCurrent: () => bool
 
   const copyCard = () => {
     const say = (text: string) => (find('copy-status').textContent = text)
-    // As with the cover: the write starts during the click, with the image filled in when it's ready.
+    // WebKit only allows the write during the click, so it starts now, with the image filled in when it's ready.
     const blob = drawn.then(
       () => new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Couldn't make the image."))), 'image/png')),
     )

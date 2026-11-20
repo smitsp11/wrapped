@@ -1,5 +1,5 @@
 import { BrokenLinkError, WrappedError } from '../errors'
-import type { Hit } from '../stats/greatestHits'
+import { type Hit, SHOWN_HITS } from '../stats/greatestHits'
 import type { Wrap } from '../types'
 import { parseWrap } from './parseWrap'
 
@@ -26,17 +26,36 @@ export async function unpackWrap(packed: string): Promise<Wrap> {
   return parseWrap(value)
 }
 
-/** Removes quotes from the end until the packed wrap fits. Expects `greatestHits` sorted most-reacted first, as `greatestHits()` returns it. */
+/**
+ * Shrinks the wrap until the packed link fits. Expects `greatestHits` sorted most-reacted first, as `greatestHits()` returns it.
+ * Only the quotes the slide shows (SHOWN_HITS) keep their conversation. Then, while it's too long, it removes in this order:
+ * quotes the slide doesn't show, conversations (least-reacted quote first), then shown quotes from the end.
+ */
 export async function fitToLimit(wrap: Wrap, limit = MAX_LINK_CHARS): Promise<{ packed: string; dropped: Hit[] }> {
-  const kept = [...wrap.greatestHits]
+  const kept = wrap.greatestHits.map((hit, i) => (i < SHOWN_HITS ? hit : withoutConversation(hit)))
   const dropped: Hit[] = []
   for (;;) {
     const packed = await packWrap({ ...wrap, greatestHits: kept })
     if (packed.length <= limit) return { packed, dropped }
+    const lastConvo = lastIndexWithConversation(kept)
+    if (kept.length <= SHOWN_HITS && lastConvo >= 0) {
+      kept[lastConvo] = withoutConversation(kept[lastConvo]!)
+      continue
+    }
     const last = kept.pop()
     if (!last) throw new WrappedError('This wrap is too big to fit in a link.')
     dropped.unshift(last)
   }
+}
+
+function withoutConversation(hit: Hit): Hit {
+  const { conversation: _, ...rest } = hit
+  return rest
+}
+
+function lastIndexWithConversation(hits: Hit[]): number {
+  for (let i = hits.length - 1; i >= 0; i--) if (hits[i]!.conversation) return i
+  return -1
 }
 
 async function transform(

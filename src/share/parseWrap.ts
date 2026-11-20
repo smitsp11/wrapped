@@ -1,5 +1,5 @@
 import { BrokenLinkError, NewerVersionError } from '../errors'
-import { AWARD_IDS, REACTION_TYPES } from '../types'
+import { ATTACHMENT_KINDS, AWARD_IDS, REACTION_TYPES } from '../types'
 import type { Wrap } from '../types'
 
 const PERSON_ID = /^(me|others|p\d+)$/
@@ -59,6 +59,27 @@ function checkList(value: unknown, fields: Record<string, (v: unknown) => boolea
     check(isRecord(item))
     for (const [name, ok] of Object.entries(fields)) check(ok((item as Record<string, unknown>)[name]))
   }
+}
+
+function optional(ok: (v: unknown) => boolean) {
+  return (value: unknown) => value === undefined || ok(value)
+}
+
+/** The messages around a hit, and `hit`: the index of the hit among them. */
+function checkConversation(value: unknown): void {
+  check(isRecord(value))
+  const convo = value as Record<string, unknown>
+  checkList(convo.messages, {
+    senderId: isPersonId,
+    text: isString,
+    sentAt: isString,
+    media: optional(isOneOf(ATTACHMENT_KINDS)),
+    reactions: optional(isFiniteNumber),
+    laughs: optional(isFiniteNumber),
+    hearts: optional(isFiniteNumber),
+  })
+  const hit = convo.hit
+  check(Number.isInteger(hit) && (hit as number) >= 0 && (hit as number) < (convo.messages as unknown[]).length)
 }
 
 /** Checks every field the slides read. Throws BrokenLinkError (or NewerVersionError) instead of returning bad data. */
@@ -121,6 +142,10 @@ export function parseWrap(value: unknown): Wrap {
     reactions: isFiniteNumber,
     laughs: isFiniteNumber,
   })
+  // Optional: links made before conversations existed have none.
+  for (const hit of value.greatestHits as Record<string, unknown>[]) {
+    if (hit.conversation !== undefined) checkConversation(hit.conversation)
+  }
   checkList(value.awards, {
     id: isOneOf(AWARD_IDS),
     title: isString,

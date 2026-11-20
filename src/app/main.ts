@@ -1,4 +1,4 @@
-import { cancel, confirm, intro, isCancel, log, note, outro, select, spinner } from '@clack/prompts'
+import { cancel, confirm, intro, isCancel, log, outro, select, spinner } from '@clack/prompts'
 import { execFile } from 'node:child_process'
 import { parseArgs } from 'node:util'
 import { version } from '../../package.json'
@@ -15,17 +15,38 @@ import { openNewMessage } from './messagesApp'
 import { fullYear, periodChoices, yearSoFar, type Period } from './period'
 import { findWebDir, openBrowser, startServer } from './serve'
 import { loadContactBook, openSession, type Session } from './session'
-import { installerAddedToPath } from './shellStartup'
+import { clearResume, claimResume, canResume, writeResume } from './resume'
+import { canAutoResume, installerAddedToPath, onPath } from './shellStartup'
 import { APP_DIR, hasConsented, saveConsent } from './store'
 import { checkForUpdate, installedVersion, runUpdate, type Update } from './update'
+import { wrapText } from './wrapText'
 
 const SITE = (process.env.WRAPPED_SITE ?? 'https://wrapped.smitpatel.xyz').replace(/\/+$/, '')
 
-export type Flags = { update: boolean; version: boolean; db: string; check: boolean; year: number; yearGiven: boolean; now: Date }
+export type Flags = {
+  update: boolean
+  version: boolean
+  db: string
+  check: boolean
+  resumeCheck: boolean
+  year: number
+  yearGiven: boolean
+  now: Date
+}
+
+/** Long enough to read the access line before System Settings covers the terminal. */
+const SETTINGS_DELAY_MS = 1500
 
 function parseFlags(): Flags {
   const { values, positionals } = parseArgs({
-    options: { version: { type: 'boolean' }, db: { type: 'string' }, check: { type: 'boolean' }, year: { type: 'string' }, now: { type: 'string' } },
+    options: {
+      version: { type: 'boolean' },
+      db: { type: 'string' },
+      check: { type: 'boolean' },
+      'resume-check': { type: 'boolean' },
+      year: { type: 'string' },
+      now: { type: 'string' },
+    },
     allowPositionals: true,
   })
   const command = positionals[0]
@@ -35,6 +56,7 @@ function parseFlags(): Flags {
     version: values.version ?? false,
     db: values.db ?? DEFAULT_CHAT_DB,
     check: values.check ?? false,
+    resumeCheck: values['resume-check'] ?? false,
     year: parseYear(values.year),
     yearGiven: values.year !== undefined,
     now: parseNow(values.now),
@@ -55,22 +77,44 @@ function stop(message = 'No problem. Nothing was made.'): never {
   throw new Cancelled(message)
 }
 
+/**
+ * Text for clack's lines, wrapped at this terminal's width so no word is split. clack draws a 3-column gutter
+ * before each line; `joiner` indents the lines after the first where clack doesn't (outro, cancel).
+ */
+function fit(text: string, joiner = '\n'): string {
+  const columns = process.stdout.columns
+  return wrapText(text, columns ? columns - 4 : undefined).join(joiner)
+}
+
+/** First run only: what it does, the startup-file line if the installer added one, and Continue?. Later runs skip all of it. */
 async function askConsent(): Promise<void> {
-  note(copy.welcomeLines(installerAddedToPath()).join('\n'), copy.WELCOME_TITLE)
   if (hasConsented(APP_DIR)) return
+  log.info(fit(copy.welcomeLines(installerAddedToPath()).join('\n')))
   const yes = await confirm({ message: 'Continue?' })
   if (isCancel(yes) || !yes) stop()
   saveConsent(APP_DIR)
 }
 
-function ensureAccess(dbPath: string): void {
+/**
+ * True when Messages can be read. Otherwise: say what to do, then open the Full Disk Access page 1.5 s later,
+ * so the line is read before System Settings covers the terminal, and return false (the run ends there).
+ * Where the startup line can pick up after "Quit & Reopen", the resume marker is written just before Settings
+ * opens. The resumed run never writes it again, so a switch left off can't loop.
+ */
+async function ensureAccess(dbPath: string, resumed: boolean): Promise<boolean> {
   const access = checkAccess(dbPath)
   if (access === 'missing') throw new MissingDatabaseError(dbPath)
-  if (access === 'denied') {
-    execFile('open', [FULL_DISK_ACCESS_URL], () => undefined)
-    note(copy.accessSteps(terminalName(), Boolean(process.env.TMUX)).join('\n'), 'One switch to flip 🔑')
-    throw new Cancelled('Open a new Terminal window and type  wrapped  again after you flip it.')
-  }
+  if (access === 'ok') return true
+  const terminal = terminalName()
+  const resume = !resumed && canResume(process.env) && canAutoResume()
+  if (resumed) log.warn(copy.stillNoAccess(terminal))
+  const steps = copy.accessSteps(terminal, { resume, inTmux: Boolean(process.env.TMUX) })
+  log.info(fit(steps.slice(0, -1).join('\n')))
+  outro(fit(steps.at(-1)!, '\n   '))
+  await new Promise((resolve) => setTimeout(resolve, SETTINGS_DELAY_MS))
+  if (resume) writeResume(APP_DIR, process.env, Date.now())
+  await new Promise((resolve) => execFile('open', [FULL_DISK_ACCESS_URL], resolve))
+  return false
 }
 
 async function choosePeriod(flags: Flags): Promise<Period> {
@@ -88,7 +132,7 @@ async function load(dbPath: string, period: Period, now: Date): Promise<Session>
   const { contacts, note: contactsNote } = loadContactBook(openBunSqlite)
   const session = openSession({ openSqlite: openBunSqlite, dbPath, contacts, period, now })
   s.stop(`Messages ✓  Contacts ✓ (${contacts.size.toLocaleString('en-US')} names)`)
-  if (contactsNote) log.warn(contactsNote)
+  if (contactsNote) log.warn(fit(contactsNote))
   return session
 }
 
@@ -96,13 +140,13 @@ async function confirmHistory(session: Session): Promise<void> {
   const { history } = session
   if (history.kind === 'empty') throw new WrappedError(copy.NO_MESSAGES_THIS_PERIOD)
   if (history.kind === 'ok') {
-    log.success(copy.historyLine(history))
+    log.success(fit(copy.historyLine(history)))
     return
   }
   // thin or stale: warn and let them decide.
-  log.warn(copy.historyLine(history))
+  log.warn(fit(copy.historyLine(history)))
   const go = await confirm({ message: 'Keep going anyway?' })
-  if (isCancel(go) || !go) stop('Okay. Open a new Terminal window and type  wrapped  when you are ready.')
+  if (isCancel(go) || !go) stop(copy.laterLine(onPath()))
 }
 
 function webFound(): boolean {
@@ -159,13 +203,22 @@ async function main(): Promise<void> {
     process.exit(code)
   }
 
+  if (flags.resumeCheck) {
+    // From the shell startup line, in a new shell while the resume marker exists. Almost always this returns
+    // at once; for the one shell that claims the marker, the run below picks up after "Quit & Reopen".
+    if (!claimResume(APP_DIR, process.env, Date.now(), Boolean(process.stdin.isTTY && process.stdout.isTTY))) return
+  } else {
+    clearResume(APP_DIR) // started by hand: an earlier marker is no longer needed
+  }
+
   catchKeyboardErrors(process.stdin, process, keyboardBroken, (err) => fail(err))
   // In the background, never awaited before the page opens. Resolves to null on any failure.
   const updateCheck = checkForUpdate(SITE, version)
   intro(copy.INTRO)
   await askConsent()
   findWebDir() // fail fast, before reading any messages
-  ensureAccess(flags.db)
+  // Exit now: Bun keeps waiting on a terminal it has read keys from (Continue?).
+  if (!(await ensureAccess(flags.db, flags.resumeCheck))) process.exit(0)
   const period = await choosePeriod(flags)
   const session = await load(flags.db, period, flags.now)
   const unregister = onExit(() => session.close())
@@ -186,16 +239,16 @@ async function runInBrowser(session: Session, updateCheck: Promise<Update | null
   const app = startServer({ site: SITE, session, appDir: APP_DIR, openMessages: openNewMessage, update: () => update })
   openBrowser(app.url)
   const [opened, keys] = copy.openLines(app.url)
-  log.success(opened!)
-  log.message(keys)
+  log.success(fit(opened!))
+  log.message(fit(keys!))
   void updateCheck.then((found) => {
     update = found
-    if (found) log.warn(copy.updateLine(found))
+    if (found) log.warn(fit(copy.updateLine(found)))
   })
   const stopKeys = listenForKeys(process.stdin, (action) => (action === 'open' ? openBrowser(app.url) : app.stop('quit')), keyboardBroken)
   const reason = await app.stopped
   stopKeys()
-  outro(copy.stoppedLine(reason))
+  outro(fit(copy.stoppedLine(reason, onPath()), '\n   '))
 }
 
 /** The keyboard can't be read: one plain line, not a stack trace. Exiting runs the cleanup (the database copy). */
@@ -206,12 +259,12 @@ function keyboardBroken(): never {
 
 function fail(err: unknown): never {
   if (err instanceof Cancelled) {
-    cancel(err.message)
+    cancel(fit(err.message, '\n   '))
     process.exit(0)
   }
   if (process.env.DEBUG) console.error(err)
-  if (err instanceof WrappedError) cancel(err.message)
-  else cancel(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
+  if (err instanceof WrappedError) cancel(fit(err.message, '\n   '))
+  else cancel(fit(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`, '\n   '))
   process.exit(1)
 }
 

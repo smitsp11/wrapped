@@ -71,7 +71,7 @@ describe('a keyboard that cannot be read', () => {
     expect(isKeyboardError(kqueue)).toBe(true)
     expect(isKeyboardError(new Error('disk full'))).toBe(false)
     expect(isKeyboardError('kqueue')).toBe(false)
-    expect(NO_KEYBOARD).toBe('Open a new Terminal window and type: wrapped')
+    expect(NO_KEYBOARD).toBe("Couldn't read the keyboard here. In a new window, type:  wrapped")
   })
   it('turns the error event (stdin, or an uncaught one from the prompts) into one plain line', () => {
     const stdin = new EventEmitter()

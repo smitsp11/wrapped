@@ -7,15 +7,17 @@ export const INTRO = ' iMessage Wrapped (beta) '
 /** The small tag next to the title on the landing page. */
 export const BETA_TAG = 'Beta'
 
-export const WELCOME_TITLE = 'iMessage Wrapped'
-/** `addedToPath`: the installer's line is in a shell startup file (see shellStartup.ts). Never claim it otherwise. */
+/** First run only. `addedToPath`: the installer's line is in a shell startup file (see shellStartup.ts). Never claim it otherwise. */
 export function welcomeLines(addedToPath: boolean): string[] {
   return [
-    'Reads Messages on this Mac to make your wraps.',
-    ...(addedToPath
-      ? ['• Added  wrapped  to your shell\'s startup file so you can type it next time (look for the line marked "added by iMessage Wrapped" to undo)']
-      : []),
+    'Makes your wraps from Messages on this Mac.',
+    ...(addedToPath ? ['Added  wrapped  to your shell\'s startup file. To undo, delete the line marked "added by iMessage Wrapped".'] : []),
   ]
+}
+
+/** How to start it again. Right after installing, this shell doesn't know  wrapped  yet (see onPath), but a new window does. */
+function typeWrapped(onPath: boolean): string {
+  return onPath ? 'Type  wrapped' : 'In a new window, type  wrapped'
 }
 
 /** The terminal's status once the page is open. The rest happens in the browser. */
@@ -24,9 +26,14 @@ export function openLines(url: string): string[] {
 }
 
 /** The terminal's last line. */
-export function stoppedLine(reason: StopReason): string {
-  if (reason === 'idle') return 'The page was closed, so iMessage Wrapped stopped. Type  wrapped  to open it again.'
-  return 'iMessage Wrapped is closed. Type  wrapped  to open it again.'
+export function stoppedLine(reason: StopReason, onPath = true): string {
+  if (reason === 'idle') return `The page was closed, so iMessage Wrapped stopped. ${typeWrapped(onPath)}  to open it again.`
+  return `iMessage Wrapped is closed. ${typeWrapped(onPath)}  to open it again.`
+}
+
+/** After saying no to "Keep going anyway?". */
+export function laterLine(onPath = true): string {
+  return `Okay. ${typeWrapped(onPath)}  when you are ready.`
 }
 
 /** The update notice, in the terminal and as a banner on the home page. */
@@ -40,26 +47,33 @@ export function updatedLine(version: string | null): string {
 }
 export const UPDATE_FAILED = "The update didn't finish, so nothing changed. Check your internet and try  wrapped update  again."
 
-export function accessSteps(terminal: string, inTmux = false): string[] {
+/**
+ * Printed just before the Full Disk Access page opens, so it's read before System Settings covers the terminal.
+ * `resume`: the marker is written and the startup line will start the app again after "Quit & Reopen" (resume.ts).
+ * The last line is the hint for when the app isn't in the list.
+ */
+export function accessSteps(terminal: string, { resume, inTmux = false }: { resume: boolean; inTmux?: boolean }): string[] {
+  const folder = terminal === 'Terminal' ? 'Applications → Utilities' : 'Applications'
   return [
-    'macOS keeps Messages private. We just opened the page:',
-    '  System Settings → Privacy & Security → Full Disk Access',
-    '',
-    `  1. Turn on ${terminal}`,
-    '     Not in the list? Click +, then pick it from Applications (Terminal is in Applications → Utilities)',
-    "     macOS may ask for your Mac's password or Touch ID",
-    ...(inTmux ? ['  Also quit tmux: run  tmux kill-server'] : []),
-    '  2. Click "Quit & Reopen" when macOS asks',
-    '  3. Open a new Terminal window, type  wrapped  and press Enter',
+    resume
+      ? `Turn on ${terminal} in the window that's about to open, then click "Quit & Reopen". Wrapped picks up by itself.`
+      : `Turn on ${terminal} in the window that's about to open, click "Quit & Reopen", then type  wrapped  again.`,
+    ...(inTmux ? ['Also quit tmux: run  tmux kill-server'] : []),
+    `(Not listed? Click + and choose ${terminal} from ${folder}.)`,
   ]
 }
 
+/** The run that started by itself after "Quit & Reopen" still can't read Messages. */
+export function stillNoAccess(terminal: string): string {
+  return `${terminal.charAt(0).toUpperCase()}${terminal.slice(1)} still can't read Messages.`
+}
+
 export const MISSING_DB =
-  "Messages isn't set up on this Mac. Sign in to Messages, turn on Messages in iCloud (Messages → Settings → iMessage), wait for it to sync, then open a new Terminal window and type  wrapped  again."
+  "Messages isn't set up on this Mac. Sign in to Messages, turn on Messages in iCloud (Messages → Settings → iMessage), wait for it to sync, then type  wrapped  again."
 
 /** Shown when Messages can't be read and we didn't just walk through accessSteps (e.g. the --check run). */
 export function noAccess(terminal: string): string {
-  return `macOS keeps Messages private. Open System Settings → Privacy & Security → Full Disk Access and turn on ${terminal}. Click "Quit & Reopen" when macOS asks, then open a new Terminal window and type  wrapped  again.`
+  return `macOS keeps Messages private. Turn on ${terminal} in System Settings → Privacy & Security → Full Disk Access, click "Quit & Reopen", then type  wrapped  again.`
 }
 
 const monthYear = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })

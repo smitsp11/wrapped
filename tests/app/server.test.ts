@@ -13,7 +13,7 @@ const ORIGIN = 'http://127.0.0.1:4321'
 
 const fakeSession: Session = {
   period: { year: 2026, from: new Date(2026, 0, 1), to: new Date(2026, 9, 28), label: '2026 so far' },
-  groups: [{ id: 7, title: 'Poker Night', messages: 302, memberNames: ['Alex', 'Sam'] }],
+  groups: [{ id: 7, chatIds: [7], title: 'Poker Night', messages: 302, memberNames: ['Alex', 'Sam'] }],
   history: { kind: 'ok', since: new Date(2019, 0, 1) },
   buildGroup: () => ({ wrap: makeFakeWrap('group'), undecodable: 0 }),
   buildSolo: () => ({ wrap: makeFakeWrap('solo'), undecodable: 0 }),
@@ -67,6 +67,12 @@ describe('local server', () => {
     expect(body.solo.made).toBe(true)
     expect(body.groups[0].made).toBe(true)
   })
+  it('names a merged group by all its chat rows, so a wrap of one row saved before merging shows as not made', async () => {
+    const gamers = { id: 73, chatIds: [73, 762], title: 'Gamers', messages: 900, memberNames: ['Alex', 'Sam'] }
+    saveWrap(deps.appDir, 'gamers-762-2026', makeFakeWrap('group'))
+    const body = await (await handle(api('/api/state'), { ...deps, session: { ...fakeSession, groups: [gamers] } })).json()
+    expect(body.groups).toEqual([{ ...gamers, wrapId: 'gamers-73-762-2026', made: false }])
+  })
   it('includes a newer version once the update check finds one', async () => {
     const update = { current: '0.2.0-beta.3', latest: '0.2.0-beta.4' }
     const body = await (await handle(api('/api/state'), { ...deps, update: () => update })).json()
@@ -90,14 +96,14 @@ describe('local server', () => {
     expect((await handle(api('/api/open-messages', { method: 'POST', body: JSON.stringify({ link }) }), deps)).status).toBe(204)
     expect(deps.openMessages).toHaveBeenCalledWith(link)
   })
-  it('remembers the name for "You", including an empty one', async () => {
-    const save = (name: unknown) => handle(api('/api/sender-name', { method: 'POST', body: JSON.stringify({ name }) }), deps)
-    expect((await save(' Smit ')).status).toBe(204)
-    expect((await (await handle(api('/api/state'), deps)).json()).senderName).toBe('Smit')
-    expect((await save('')).status).toBe(204)
-    expect((await (await handle(api('/api/state'), deps)).json()).senderName).toBe('')
-    expect((await save('x'.repeat(41))).status).toBe(400)
-    expect((await save(7)).status).toBe(400)
+  it('names "You" from your contact card, even over a name an older version saved, and has no way to change it', async () => {
+    fs.mkdirSync(deps.appDir, { recursive: true })
+    fs.writeFileSync(path.join(deps.appDir, 'sender-name'), 'Old Name')
+    expect((await (await handle(api('/api/state'), deps)).json()).senderName).toBe('Taylor')
+    const session = { ...fakeSession, senderName: () => '' } // no contact card: the wrap keeps "You"
+    expect((await (await handle(api('/api/state'), { ...deps, session })).json()).senderName).toBe('')
+    const rename = await handle(api('/api/sender-name', { method: 'POST', body: JSON.stringify({ name: 'Smit' }) }), deps)
+    expect(rename.status).toBe(404)
   })
   it('closes when the page asks', async () => {
     expect((await handle(api('/api/close', { method: 'POST' }), deps)).status).toBe(204)

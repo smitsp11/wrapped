@@ -18,20 +18,20 @@ describe('the fake "Poker Night" chat', () => {
   })
 
   it('counts every message', () => {
-    expect(wrap.volume.total).toBe(302)
+    expect(wrap.volume.total).toBe(320)
     expect(Object.fromEntries(Object.entries(wrap.volume.byPerson).map(([id, n]) => [nameOf(wrap, id), n]))).toEqual({
-      'Alex Chen': 90, You: 80, 'Sam Rivera': 66, 'Jordan Lee': 60, 'Riley Park': 6,
+      'Alex Chen': 93, You: 80, 'Sam Rivera': 69, 'Jordan Lee': 68, 'Riley Park': 10,
     })
   })
 
   it('gives the expected awards', () => {
     expect(wrap.awards.map((a) => [a.id, nameOf(wrap, a.personId), a.value])).toEqual([
-      ['main-character', 'Alex Chen', 29.8],
+      ['main-character', 'Alex Chen', 29.1],
       ['ghost', 'Jordan Lee', 314],
       ['starter', 'Alex Chen', 60],
-      ['comedian', 'Alex Chen', 70],
-      ['hype', 'Sam Rivera', 61],
-      ['night-owl', 'Jordan Lee', 100],
+      ['comedian', 'Alex Chen', 68.8],
+      ['hype', 'Sam Rivera', 62],
+      ['night-owl', 'Jordan Lee', 88.2],
       ['double-texter', 'You', 20],
     ])
   })
@@ -44,7 +44,7 @@ describe('the fake "Poker Night" chat', () => {
       'Sam Rivera': 4, You: 14, 'Riley Park': 45, 'Jordan Lee': 314,
     })
     expect(byName(wrap.replies.repliesByPerson)).toEqual({
-      'Sam Rivera': 60, You: 60, 'Riley Park': 6, 'Jordan Lee': 60,
+      'Sam Rivera': 60, You: 60, 'Riley Park': 7, 'Jordan Lee': 60,
     })
   })
 
@@ -55,10 +55,18 @@ describe('the fake "Poker Night" chat', () => {
       ['You', 'omw', 3],
     ])
     expect(Object.fromEntries(Object.entries(wrap.words.signatureWordByPerson).map(([id, w]) => [nameOf(wrap, id), w]))).toEqual({
-      'Alex Chen': 'poker', You: 'omw', 'Sam Rivera': 'bet', 'Jordan Lee': 'sorry', 'Riley Park': 'heyyy',
+      'Alex Chen': 'run it back', You: 'omw', 'Sam Rivera': 'chips', 'Jordan Lee': 'rebuy', 'Riley Park': 'dealer',
     })
-    expect(wrap.words.topWords.slice(0, 2)).toEqual([{ word: 'sorry', count: 120 }, { word: 'bet', count: 70 }])
-    expect(wrap.words.topWords.map((w) => w.word)).toEqual(['sorry', 'bet', 'omw', 'poker', 'rebuy', 'tonight', 'classic', 'jordan', 'lol', 'cards'])
+    // Shared poker words and phrases only: filler ("sorry", "bet", "lol"), names ("jordan") and one person's words ("cards") stay off.
+    expect(wrap.words.topWords).toEqual([
+      { word: 'run it back', count: 50 },
+      { word: 'poker', count: 120 },
+      { word: 'rebuy', count: 90 },
+      { word: 'chips', count: 81 },
+      { word: 'omw', count: 65 },
+      { word: 'classic', count: 31 },
+      { word: 'dealer', count: 11 },
+    ])
     expect(wrap.words.topEmoji[0]).toEqual({ emoji: '🃏', count: 60 })
   })
 
@@ -79,8 +87,8 @@ describe('the fake "Poker Night" chat', () => {
 
   it('builds a solo wrap with top chats', () => {
     const solo = makeFakeWrap('solo')
-    expect(solo.volume.total).toBe(312)
-    expect(solo.topChats).toEqual([{ name: 'Poker Night', messages: 302 }, { name: 'Alex Chen', messages: 10 }])
+    expect(solo.volume.total).toBe(330)
+    expect(solo.topChats).toEqual([{ name: 'Poker Night', messages: 320 }, { name: 'Alex Chen', messages: 10 }])
   })
 
   it('never contains a raw handle, in group or solo', () => {
@@ -93,8 +101,8 @@ describe('the fake "Poker Night" chat', () => {
   it('uses only your own words in a solo wrap', () => {
     const solo = makeFakeWrap('solo')
     const words = solo.words.topWords.map((w) => w.word)
-    for (const theirs of ['sorry', 'bet', 'poker']) expect(words).not.toContain(theirs)
-    expect(words).toContain('omw')
+    for (const theirs of ['rebuy', 'classic', 'dealer']) expect(words).not.toContain(theirs)
+    expect(words).toEqual(['omw', 'cards and chips', 'run it back', 'message'])
     expect(solo.words.topEmoji.map((e) => e.emoji)).not.toContain('🃏')
   })
 })

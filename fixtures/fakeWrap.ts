@@ -5,6 +5,7 @@ import { maskHandle } from '../src/format'
 import { MessagesDb } from '../src/extract/messagesDb'
 import { normalizeRows } from '../src/extract/normalize'
 import { openNodeSqlite } from '../src/extract/sqliteNode'
+import { countWords } from '../src/stats/words'
 import type { Wrap } from '../src/types'
 import { buildWrap } from '../src/wrap/buildWrap'
 import { FAKE_PEOPLE, makeFakeDb } from './makeFakeDb'
@@ -20,14 +21,16 @@ function fakeName(handle: string): string {
 export function makeFakeWrap(mode: 'group' | 'solo' = 'group'): Wrap {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapped-fake-'))
   try {
-    const fake = makeFakeDb(dir)
+    const fake = makeFakeDb(dir, { hitConversations: true })
     const db = MessagesDb.open(openNodeSqlite, fake.path)
     try {
       const chats = db.listChats().map((c) => ({ ...c, name: c.name || fakeName(c.memberIds[0] ?? '') }))
       const chatIds = mode === 'group' ? [fake.groupChatId] : undefined
       const { messages } = normalizeRows(db.messageRows({ chatIds, from: FROM, to: TO }))
+      // group top words are compared with every fake chat, like the app does
+      const wordBaseline = countWords(normalizeRows(db.messageRows({ from: FROM, to: TO })).messages)
       const title = mode === 'group' ? 'Poker Night' : 'Your 2026'
-      return buildWrap(messages, { mode, title, from: FROM, to: TO, nameFor: fakeName, chats })
+      return buildWrap(messages, { mode, title, from: FROM, to: TO, nameFor: fakeName, chats, wordBaseline })
     } finally {
       db.close()
     }

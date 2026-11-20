@@ -22,7 +22,7 @@ describe('youCardFrom', () => {
     wrap.words.topEmoji = [{ emoji: '😭', count: 9 }, { emoji: '💀', count: 3 }]
     wrap.awards = [
       { id: 'hype', title: 'Hype Man', personId: 'me', value: 9, label: 'gave 9 reactions' },
-      { id: 'ghost', title: 'The Ghost', personId: 'p1', value: 90, label: 'median reply 1h 30m' },
+      { id: 'ghost', title: 'The Ghost', personId: 'p1', value: 90, label: 'average reply 1h 30m' },
     ]
     const card = youCardFrom(wrap)
     expect(card.topEmoji).toBe('😭')
@@ -69,7 +69,7 @@ describe('youCardFrom', () => {
     wrap.words.topWords = [{ word: secrets[8]!, count: 50 }]
     wrap.words.topEmoji = [{ emoji: '🃏', count: 5 }]
     wrap.title = secrets[9]!
-    wrap.awards.push({ id: 'ghost', title: 'The Ghost', personId: 'p1', value: 300, label: 'median reply 5h 0m' })
+    wrap.awards.push({ id: 'ghost', title: 'The Ghost', personId: 'p1', value: 300, label: 'average reply 5h 0m' })
 
     const json = JSON.stringify(youCardFrom(wrap)).toLowerCase()
     for (const secret of secrets) expect(json).not.toContain(secret.toLowerCase())
@@ -84,17 +84,17 @@ describe('cardStats', () => {
     year: '2026', personality: PERSONALITIES.yapper, textsSent: 38412, peakHour: '1 AM', typicalReply: '42 sec',
     longestStreakDays: 143, awards: [],
   }
-  it('lists texts sent, peak hour, typical reply and streak in that order', () => {
+  it('lists texts sent, peak hour, average reply and streak in that order', () => {
     expect(cardStats(card)).toEqual([
       { value: '38,412', label: 'texts sent' },
       { value: '1 AM', label: 'peak hour' },
-      { value: '42 sec', label: 'typical reply' },
+      { value: '42 sec', label: 'average reply' },
       { value: '143 days', label: 'longest streak' },
     ])
   })
   it('skips the ones the card does not have', () => {
     expect(cardStats({ ...card, peakHour: undefined, longestStreakDays: undefined }).map((s) => s.label)).toEqual([
-      'texts sent', 'typical reply',
+      'texts sent', 'average reply',
     ])
   })
 })

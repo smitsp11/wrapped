@@ -66,7 +66,8 @@ const RULES: Rule[] = [
   {
     id: 'ghost', title: 'The Ghost', pick: 'max',
     raw: ghostMinutes, threshold: () => GHOST_MIN_MINUTES, display: (r) => r,
-    label: (v) => `median reply ${formatMinutes(v)}`,
+    // The number is a median, but "average" is the word people read without stopping.
+    label: (v) => `average reply ${formatMinutes(v)}`,
   },
   {
     id: 'starter', title: 'The Starter', pick: 'max',
@@ -100,6 +101,9 @@ const RULES: Rule[] = [
     label: (v) => `only ${v}% of messages`,
   },
 ]
+
+/** Every award's title, in the order the slides show them. */
+export const AWARD_TITLES: { id: AwardId; title: string }[] = RULES.map(({ id, title }) => ({ id, title }))
 
 /**
  * Every award comes from one number, compared unrounded, and goes to a unique winner who clears the rule's threshold.

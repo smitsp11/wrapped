@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { BETA_TAG, INTRO, MISSING_DB, UPDATE_FAILED, accessSteps, historyLine, noAccess, openLines, stoppedLine, updatedLine, welcomeLines } from '../../src/app/copy'
+import {
+  BETA_TAG,
+  INTRO,
+  MISSING_DB,
+  UPDATE_FAILED,
+  accessSteps,
+  historyLine,
+  laterLine,
+  noAccess,
+  openLines,
+  stillNoAccess,
+  stoppedLine,
+  updatedLine,
+  welcomeLines,
+} from '../../src/app/copy'
 
 describe('copy', () => {
   it('says how far back history goes', () => {
@@ -11,17 +25,39 @@ describe('copy', () => {
   it('warns when this Mac stopped syncing, with the newest date', () => {
     expect(historyLine({ kind: 'stale', until: new Date(2026, 1, 10) })).toContain('Feb 2026')
   })
-  it('names the terminal app in the access steps', () => {
-    expect(accessSteps('iTerm').join('\n')).toContain('Turn on iTerm')
+  it('gives one access line, plus where to find the app when it is not listed', () => {
+    expect(accessSteps('Terminal', { resume: true })).toEqual([
+      'Turn on Terminal in the window that\'s about to open, then click "Quit & Reopen". Wrapped picks up by itself.',
+      '(Not listed? Click + and choose Terminal from Applications → Utilities.)',
+    ])
   })
-  it('tells people whose app is not listed what to do', () => {
-    const text = accessSteps('iTerm').join('\n')
-    expect(text).toContain('Not in the list? Click +')
-    expect(text).toContain('Touch ID')
+  it('names the terminal app, and its folder', () => {
+    const text = accessSteps('iTerm', { resume: true }).join('\n')
+    expect(text).toContain('Turn on iTerm in the window')
+    expect(text).toContain('choose iTerm from Applications.)')
     expect(text).not.toContain('tmux')
   })
+  it('says to type  wrapped  only when it will not pick up by itself', () => {
+    expect(accessSteps('Warp', { resume: true }).join('\n')).not.toContain('type')
+    expect(accessSteps('Warp', { resume: false })[0]).toBe('Turn on Warp in the window that\'s about to open, click "Quit & Reopen", then type  wrapped  again.')
+  })
   it('adds a tmux step only inside tmux', () => {
-    expect(accessSteps('iTerm', true).join('\n')).toContain('tmux kill-server')
+    expect(accessSteps('iTerm', { resume: false, inTmux: true }).join('\n')).toContain('tmux kill-server')
+  })
+  it('says when the resumed run still has no access', () => {
+    expect(stillNoAccess('Terminal')).toBe("Terminal still can't read Messages.")
+    expect(stillNoAccess('your terminal app')).toBe("Your terminal app still can't read Messages.")
+  })
+  it('never says to open a new Terminal window', () => {
+    const all = [
+      ...welcomeLines(true),
+      ...accessSteps('Terminal', { resume: false, inTmux: true }),
+      MISSING_DB,
+      noAccess('Terminal'),
+      stoppedLine('quit', false),
+      laterLine(false),
+    ].join('\n')
+    expect(all).not.toMatch(/new Terminal window/i)
   })
   it('has no backticks in any wording', () => {
     expect(welcomeLines(true).join('')).not.toContain('`')
@@ -30,9 +66,9 @@ describe('copy', () => {
   })
   it('names the terminal app and the settings page when access is blocked', () => {
     const text = noAccess('iTerm')
-    expect(text).toContain('turn on iTerm')
+    expect(text).toContain('Turn on iTerm')
     expect(text).toContain('System Settings → Privacy & Security → Full Disk Access')
-    expect(text).toContain('open a new Terminal window and type  wrapped  again')
+    expect(text).toContain('click "Quit & Reopen", then type  wrapped  again')
   })
   it('points to the Keep messages setting and Sync Now', () => {
     expect(historyLine({ kind: 'thin', since: new Date(2026, 9, 6) })).toContain('"Keep messages" (Messages → Settings → General)')
@@ -44,8 +80,9 @@ describe('copy', () => {
   })
   it('mentions the startup file only when the installer added the line', () => {
     expect(welcomeLines(true).join('\n')).toContain('Added  wrapped  to your shell\'s startup file')
+    expect(welcomeLines(true).join('\n')).toContain('"added by iMessage Wrapped"')
     expect(welcomeLines(false).join('\n')).not.toContain('startup file')
-    expect(welcomeLines(false)).toEqual(['Reads Messages on this Mac to make your wraps.'])
+    expect(welcomeLines(false)).toEqual(['Makes your wraps from Messages on this Mac.'])
   })
   it('keeps the welcome to one neutral line, with no privacy reassurance', () => {
     const text = welcomeLines(true).join('\n').toLowerCase()
@@ -60,6 +97,11 @@ describe('copy', () => {
   it('says why it stopped and how to come back', () => {
     expect(stoppedLine('idle')).toContain('The page was closed')
     for (const reason of ['idle', 'closed', 'quit'] as const) expect(stoppedLine(reason)).toContain('Type  wrapped  to open it again.')
+  })
+  it('says to use a new window only when this shell does not know  wrapped  yet (right after installing)', () => {
+    expect(stoppedLine('quit', false)).toBe('iMessage Wrapped is closed. In a new window, type  wrapped  to open it again.')
+    expect(laterLine(true)).toBe('Okay. Type  wrapped  when you are ready.')
+    expect(laterLine(false)).toBe('Okay. In a new window, type  wrapped  when you are ready.')
   })
   it('says what  wrapped update  did', () => {
     expect(updatedLine('0.2.0-beta.4')).toBe('Updated to 0.2.0-beta.4. Type  wrapped  to start it.')

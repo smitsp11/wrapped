@@ -5,7 +5,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { installerAddedToPath, startupFiles } from '../src/app/shellStartup'
+import { STARTUP_LINE, canAutoResume, installerAddedToPath, startupFiles } from '../src/app/shellStartup'
 import { installedVersion, runUpdate } from '../src/app/update'
 
 const SCRIPT = path.resolve('site/install.sh')
@@ -86,6 +86,8 @@ const install = (home: string, extra = {}) => run(home, extra)
 const newHome = () => fs.mkdtempSync(path.join(dir, 'home-'))
 const binOf = (home: string) => path.join(home, '.imessage-wrapped', 'bin', 'wrapped')
 const MARK = 'added by iMessage Wrapped'
+/** What installers before auto-resume added. */
+const OLD_LINE = 'export PATH="$HOME/.imessage-wrapped/bin:$PATH" # added by iMessage Wrapped'
 
 describe('install.sh', () => {
   it('installs wrapped and adds it to PATH exactly once', async () => {
@@ -96,7 +98,9 @@ describe('install.sh', () => {
     expect(execFileSync(bin, { encoding: 'utf8' })).toBe('fake wrapped 1.0.0\n')
     const rc = fs.readFileSync(path.join(home, '.zshrc'), 'utf8')
     expect(rc.match(/added by iMessage Wrapped/g)).toHaveLength(1)
+    expect(rc).toBe(`\n${STARTUP_LINE}\n`) // the same line the app looks for
     expect(installerAddedToPath(startupFiles(home, home))).toBe(true) // the welcome then says so
+    expect(canAutoResume(startupFiles(home, home))).toBe(true)
   })
   it('updates by running the install line again: the new program replaces the old, still one PATH line', async () => {
     const home = newHome()
@@ -107,14 +111,14 @@ describe('install.sh', () => {
     expect(execFileSync(binOf(home), { encoding: 'utf8' })).toBe('fake wrapped 1.1.0\n')
     expect(fs.readFileSync(path.join(home, '.zshrc'), 'utf8').match(/added by iMessage Wrapped/g)).toHaveLength(1)
     expect(fs.readdirSync(path.join(home, '.imessage-wrapped')).filter((f) => f.startsWith('.tmp.'))).toEqual([])
-    expect(again.stdout).toContain('Installed iMessage Wrapped 1.1.0.')
+    expect(again.stdout).toBe('Downloading iMessage Wrapped…\nInstalled.\n')
   })
-  it('leaves the version out of the message when the program does not print one', async () => {
+  it('says only "Installed." when the line was added: no PATH hint', async () => {
     const home = newHome()
-    publish('not a version')
     const r = await install(home)
     expect(r.status).toBe(0)
-    expect(r.stdout).toContain('Installed. Next time')
+    expect(r.stdout).toBe('Downloading iMessage Wrapped…\nInstalled.\n')
+    expect(r.stderr).toBe('')
   })
   it('installs nothing when the checksum does not match', async () => {
     corrupt = true
@@ -161,7 +165,7 @@ describe('install.sh', () => {
     const home = newHome()
     fs.writeFileSync(path.join(home, '.profile'), '# mine\n')
     expect((await install(home, { shell: '/bin/bash' })).status).toBe(0)
-    expect((await install(home, { shell: '/bin/bash' })).stdout).toContain('type:  wrapped')
+    expect((await install(home, { shell: '/bin/bash' })).stdout).toBe('Downloading iMessage Wrapped…\nInstalled.\n')
     expect(fs.readFileSync(path.join(home, '.profile'), 'utf8')).toContain(MARK)
     expect(fs.existsSync(path.join(home, '.bash_profile'))).toBe(false)
     expect(installerAddedToPath(startupFiles(home, home))).toBe(true)
@@ -195,11 +199,53 @@ describe('install.sh', () => {
     fs.writeFileSync(rc, '# mine\n', { mode: 0o444 })
     const r = await install(home)
     expect(r.status).toBe(0)
-    expect(r.stderr).toContain('Could not update')
-    expect(r.stderr).toContain('Next time run:')
-    expect(r.stdout).toContain('Next time run:')
-    expect(r.stdout).not.toContain('type:  wrapped')
+    expect(r.stderr).toBe(`Could not update ${rc}.\n`)
+    expect(r.stdout).toContain(`Installed. Next time run:  ${binOf(home)}`)
     expect(fs.existsSync(binOf(home))).toBe(true)
+  })
+  it('swaps an older install\'s PATH-only line for the current one, in place, keeping one marked line', async () => {
+    const home = newHome()
+    const rc = path.join(home, '.zshrc')
+    fs.writeFileSync(rc, `# before\n${OLD_LINE}\n# after\n`, { mode: 0o640 })
+    const r = await install(home)
+    expect(r.status).toBe(0)
+    expect(r.stdout).toBe('Downloading iMessage Wrapped…\nInstalled.\n')
+    expect(fs.readFileSync(rc, 'utf8')).toBe(`# before\n${STARTUP_LINE}\n# after\n`)
+    expect(fs.statSync(rc).mode & 0o777).toBe(0o640)
+    expect((await install(home)).status).toBe(0) // and again: nothing changes
+    expect(fs.readFileSync(rc, 'utf8')).toBe(`# before\n${STARTUP_LINE}\n# after\n`)
+  })
+  it('leaves exactly one marked line when there were several', async () => {
+    const home = newHome()
+    const rc = path.join(home, '.zshrc')
+    fs.writeFileSync(rc, `${OLD_LINE}\nalias ll="ls -l"\n${STARTUP_LINE}\n`)
+    expect((await install(home)).status).toBe(0)
+    expect(fs.readFileSync(rc, 'utf8')).toBe(`${STARTUP_LINE}\nalias ll="ls -l"\n`)
+  })
+  it('updates the line through a symlinked startup file, keeping the symlink', async () => {
+    const home = newHome()
+    const real = path.join(home, 'dotfiles-zshrc')
+    fs.writeFileSync(real, `${OLD_LINE}\n`)
+    fs.symlinkSync(real, path.join(home, '.zshrc'))
+    expect((await install(home)).status).toBe(0)
+    expect(fs.lstatSync(path.join(home, '.zshrc')).isSymbolicLink()).toBe(true)
+    expect(fs.readFileSync(real, 'utf8')).toBe(`${STARTUP_LINE}\n`)
+  })
+  it('migrates a bash startup file too', async () => {
+    const home = newHome()
+    fs.writeFileSync(path.join(home, '.bash_profile'), `${OLD_LINE}\n`)
+    expect((await install(home, { shell: '/bin/bash' })).status).toBe(0)
+    expect(fs.readFileSync(path.join(home, '.bash_profile'), 'utf8')).toBe(`${STARTUP_LINE}\n`)
+  })
+  it('leaves a read-only startup file with the old line as it was, and says how to run it', async () => {
+    const home = newHome()
+    const rc = path.join(home, '.zshrc')
+    fs.writeFileSync(rc, `${OLD_LINE}\n`, { mode: 0o444 })
+    const r = await install(home)
+    expect(r.status).toBe(0)
+    expect(r.stderr).toBe(`Could not update ${rc}.\n`)
+    expect(r.stdout).toContain('Next time run:')
+    expect(fs.readFileSync(rc, 'utf8')).toBe(`${OLD_LINE}\n`)
   })
   it('leaves no temp directory behind', async () => {
     const home = newHome()
@@ -285,4 +331,32 @@ describe('wrapped update', () => {
     expect(fs.existsSync(binOf(home))).toBe(false)
     expect(installedVersion(path.join(home, '.imessage-wrapped'))).toBeNull()
   })
+})
+
+describe('the startup line, in a real shell', () => {
+  /** Starts an interactive shell that reads the startup file and exits. The fake program prints "fake wrapped" when run. */
+  function shell(home: string, command: string[]) {
+    return new Promise<string>((resolve) => {
+      const child = spawn(command[0]!, command.slice(1), { env: { PATH: '/usr/bin:/bin', HOME: home, ZDOTDIR: home, TERM: 'dumb' } })
+      let out = ''
+      child.stdout.on('data', (d) => (out += d))
+      child.on('close', () => resolve(out))
+      child.stdin.end()
+    })
+  }
+  const marker = (home: string) => path.join(home, '.imessage-wrapped', 'resume')
+
+  for (const [name, command, rc] of [
+    ['zsh', ['/bin/zsh', '-i', '-c', 'echo "on path: $(command -v wrapped)"'], '.zshrc'],
+    ['bash', ['/bin/bash', '-l', '-i', '-c', 'echo "on path: $(command -v wrapped)"'], '.bash_profile'],
+  ] as const) {
+    it(`${name}: puts wrapped on PATH, and starts it only while the resume marker exists`, async () => {
+      const home = newHome()
+      expect((await install(home, { shell: `/bin/${name}` })).status).toBe(0)
+      expect(fs.readFileSync(path.join(home, rc), 'utf8')).toContain(STARTUP_LINE)
+      expect(await shell(home, [...command])).toBe(`on path: ${binOf(home)}\n`)
+      fs.writeFileSync(marker(home), 'Apple_Terminal\n1\n')
+      expect(await shell(home, [...command])).toBe(`fake wrapped 1.0.0\non path: ${binOf(home)}\n`)
+    })
+  }
 })
