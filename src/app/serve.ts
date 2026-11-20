@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { WrappedError } from '../errors'
+import { presence } from './presence'
 import { handle, type ServerDeps } from './server'
 
 /** The built web pages: embedded at `dist/` inside the compiled program (bun --asset web/dist), or web/dist when run from source. */
@@ -18,30 +19,46 @@ export function findWebDir(): string {
   return found
 }
 
-type Options = Omit<ServerDeps, 'token' | 'port' | 'webDir' | 'onDone'>
+type Options = Omit<ServerDeps, 'token' | 'port' | 'webDir' | 'presence' | 'onClose'>
 
-/** Serves on 127.0.0.1 only, opens the browser, and resolves when the page says it's done. */
-export async function serveUntilDone(options: Options, route: string): Promise<void> {
+/** Why the app stopped: the last page closed a minute ago, the page's Close link, or q / Ctrl-C in the terminal. */
+export type StopReason = 'idle' | 'closed' | 'quit'
+
+export type Running = { url: string; stopped: Promise<StopReason>; stop(reason: StopReason): void }
+
+/** Serves on 127.0.0.1 only, on a free port. `stopped` resolves once the server has shut down. */
+export function startServer(options: Options): Running {
   const token = crypto.randomUUID().replaceAll('-', '')
   const webDir = findWebDir()
-  let finish = () => undefined as void
-  const done = new Promise<void>((resolve) => (finish = resolve))
+  let stop = (_reason: StopReason) => undefined as void
+  const stopped = new Promise<StopReason>((resolve) => {
+    let stopping = false
+    stop = (reason) => {
+      if (stopping) return
+      stopping = true
+      pages.stop()
+      // true: also end the open page requests, so every page shows that the app is closed.
+      void server.stop(true).then(() => resolve(reason))
+    }
+  })
+  const pages = presence(() => stop('idle'))
   let port = 0
   const server = Bun.serve({
     hostname: '127.0.0.1',
     port: 0,
     development: false,
     error: () => new Response(null, { status: 500 }),
-    fetch: (req) => handle(req, { ...options, token, port, webDir, onDone: finish }),
+    fetch: (req) =>
+      // The Close link's request gets its answer before the server goes away.
+      handle(req, { ...options, token, port, webDir, presence: pages, onClose: () => setTimeout(() => stop('closed'), 100) }),
   })
   port = server.port ?? 0
-  const url = `http://127.0.0.1:${port}/?t=${token}${route}`
+  return { url: `http://127.0.0.1:${port}/?t=${token}`, stopped, stop }
+}
+
+/** Opens the page in the default browser; if that fails, prints the link to open by hand. */
+export function openBrowser(url: string): void {
   execFile('open', [url], (err) => {
     if (err) console.log(`Open this link in your browser:\n${url}`)
   })
-  try {
-    await done
-  } finally {
-    await server.stop()
-  }
 }

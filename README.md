@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/icon.svg" width="84" alt=""></p>
+
 <h1 align="center">iMessage Wrapped <sup><sub>beta</sub></sup></h1>
 
 <h3 align="center">the year's almost over. who did you actually text the most?</h3>
@@ -48,14 +50,16 @@ can't read Messages yet, it walks you through one switch in System Settings (Ful
 [explained below](#why-full-disk-access)). Then it opens your wraps in the browser. Next time, open
 a new Terminal window and type `wrapped`.
 
+`wrapped` tells you when there's an update; run `wrapped update`.
+
 You need a Mac (Apple Silicon or Intel) that's signed in to Messages. Turn on Messages in iCloud so
 your full history is on the Mac. You don't need Node, Homebrew or anything else. Your friends only
 need a phone or a browser to watch.
 
 <p align="center">
-  <img src="docs/images/install.png" width="720" alt="Terminal: the curl line is pasted, the installer prints 'Downloading iMessage Wrapped…' and 'Installed iMessage Wrapped 0.2.0-beta.2', then the program shows a welcome note listing what it reads, asks 'Continue?', reads Messages and Contacts, says 'Your messages go back to Jan 2026', and offers a menu: 'My year' or 'Group chats'.">
+  <img src="docs/images/install.png" width="720" alt="Terminal: the curl line is pasted, the installer prints 'Downloading iMessage Wrapped…' and 'Installed iMessage Wrapped 0.2.0-beta.3', then the program shows a welcome note saying it reads Messages on this Mac and added wrapped to the shell's startup file, asks 'Continue?', reads Messages and Contacts, says 'Your messages go back to Jan 2026', then 'iMessage Wrapped is open in your browser' with a link on 127.0.0.1, and 'Keep this window open. Press o to reopen the page, q to quit.'">
   <br>
-  <sub>The program's real output, run on a made-up Messages database.</sub>
+  <sub>The program's real output, run on a made-up Messages database. The rest happens in your browser.</sub>
 </p>
 
 ## What you get
@@ -68,7 +72,7 @@ Every slide is a number counted from your messages. Here's what a group chat's w
 | **Who talked the most** | Each person's share of the chat. |
 | **Peak hour** | The hour of the day the chat is busiest. |
 | **Longest streak** | The most days in a row with at least one message (and the longest silence, if the chat went quiet for 2+ days). |
-| **Fastest repliers** | Each person's typical (median) reply time, for people with at least 5 replies. |
+| **Fastest repliers** | How fast each person typically (median) joins a conversation someone else started, timed from its first message, for people who joined at least 5. |
 | **Who starts the conversation** | Who sends the first message after 6+ hours of quiet. |
 | **Biggest reactors** | Who hands out the most tapbacks. |
 | **The group's vocabulary** | Top words, top emoji, and each person's signature word. |
@@ -78,15 +82,17 @@ Every slide is a number counted from your messages. Here's what a group chat's w
 **My year** is the other kind of wrap: you and the 5 people who sent the most messages in your chats,
 with your top chats, your own vocabulary and your own greatest hits.
 
-When the wraps are ready they open on a page served by the program on your own Mac. For each one
-you can play it, see exactly what goes into the link, untick any quote or signature word, copy a
-cover image, copy the link, or press **Open Messages** to start a new message with the link filled
-in. You pick who it goes to and press send yourself. It never sends anything for you.
+Everything happens on a page served by the program on your own Mac: pick My year or a group chat,
+watch it, and press **Send to group chat** (**Send in Messages** for My year). That copies the link
+and starts a new message with the link filled in; you pick the group and press send yourself. It
+never sends anything for you. In a group wrap, **Your name in the wrap** shows your name instead of
+"You". The line under it says what goes into the link; **Change** opens a tick box for every quote
+and signature word, so you can untick any of them.
 
 <p align="center">
-  <img src="docs/images/review.png" width="720" alt="The 'Your wraps' page for Poker Night: a phone-sized preview of the wrap on the left; on the right, 'What's in the link' with a checkbox beside every quote and signature word, one quote unticked with a warning that it looks like a phone number or email, then the cover image and buttons for Copy cover image, Copy link and Open Messages.">
+  <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left. On the right, 'Your name in the wrap' set to Taylor, the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, the cover image with Copy cover image, and 'Includes stats, first names and 2 quotes · Hide' opened to a tick box beside every quote and signature word, one quote unticked with a warning that it looks like a phone number or email.">
   <br>
-  <sub>The review page on your Mac. A quote that looks like it has a phone number starts unticked.</sub>
+  <sub>The wrap page on your Mac, just after Send. A quote that looks like it has a phone number starts unticked.</sub>
 </p>
 
 <p align="center">
@@ -101,12 +107,12 @@ Each award comes from one number. To keep it fair:
 
 - Someone needs at least 50 messages to win anything.
 - If two people tie for the top, nobody gets that award.
-- The winner has to clear a minimum, so nobody becomes The Ghost for replying in 3 minutes.
+- The winner has to clear a minimum, so nobody becomes The Ghost for showing up in 3 minutes.
 
 | Award | Goes to | Minimum |
 |:--|:--|:--|
 | **Main Character** | the biggest share of messages | none |
-| **The Ghost** | the slowest typical reply | 1 hour, over at least 10 replies |
+| **The Ghost** | the slowest typical time to join a conversation someone else started | 1 hour, over at least 10 conversations joined |
 | **The Starter** | the most conversations started | 3 |
 | **The Comedian** | the most laughs received per message | 1 laugh per 100 messages |
 | **Hype Man** | the most reactions given | 3 |
@@ -132,7 +138,8 @@ Here's what that means in practice:
   The website is plain static files. It stores nothing and never sees a wrap. (Like any website, its
   host sees the ordinary request for the page.)
 - **No AI, no analytics, no account.** Nothing is summarised by a model and nothing is tracked. The
-  program makes no network requests of its own; the only download is the install.
+  program's only network request of its own asks the website for the newest version number, and it
+  sends nothing about you.
 - **No phone numbers or emails in a link.** People are stored as short ids with the names from your
   Contacts. Anyone who isn't in your Contacts shows up masked, like `+1 ••• ••• 4821` or
   `j•••@gmail.com`.
@@ -225,6 +232,7 @@ before running it.
 wrapped                    # make new wraps, or reopen saved ones
 wrapped --year 2025        # a full past year instead of this year so far
 wrapped --version          # print the installed version
+wrapped update             # install the newest version
 DEBUG=1 wrapped            # show the full error if something goes wrong
 ```
 
@@ -261,7 +269,7 @@ The site only serves the page that unpacks it.
 <summary><b>Can I take back a link I sent?</b></summary>
 
 No. There's nothing stored on a server to delete, because the wrap is inside the link itself.
-That's why the review page shows every quote before you copy the link.
+That's why the wrap page lists every quote under **Change** before you send the link.
 </details>
 
 <details>
@@ -332,7 +340,7 @@ npm run test:bun                  # builds the program and runs it against the f
 ```
 
 The tests use a generated fake Messages database with a scripted group chat whose answers are known
-in advance (for example, Jordan's typical reply is exactly 5 hours). No real messages or contacts are
+in advance (for example, Jordan typically joins 5h 14m after Alex's opener). No real messages or contacts are
 in this repo. The installer tests run against a local server with a temporary `HOME`, so they never
 touch your shell settings.
 

@@ -113,10 +113,13 @@ test('Escape goes home, and taps there do nothing', async ({ page }) => {
   await expect(page.getByTestId('slide')).toHaveCount(0)
 })
 
-test('the outro can watch again', async ({ page }) => {
+test('the outro asks you to make your own and can watch again', async ({ page }) => {
   await page.goto('/#demo')
   await tapUntilOutro(page)
-  await expect(page.getByRole('link', { name: 'Make your own' })).toBeVisible()
+  await expect(page.getByText('make one for your group chat')).toBeVisible()
+  const make = page.getByRole('link', { name: 'Make yours (Mac)' })
+  await expect(make).toBeVisible()
+  await expect(make).toHaveAttribute('href', '/')
   await page.getByRole('link', { name: 'Watch again' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
 })

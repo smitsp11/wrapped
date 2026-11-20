@@ -27,13 +27,25 @@ describe('the fake "Poker Night" chat', () => {
   it('gives the expected awards', () => {
     expect(wrap.awards.map((a) => [a.id, nameOf(wrap, a.personId), a.value])).toEqual([
       ['main-character', 'Alex Chen', 29.8],
-      ['ghost', 'Jordan Lee', 300],
+      ['ghost', 'Jordan Lee', 314],
       ['starter', 'Alex Chen', 60],
       ['comedian', 'Alex Chen', 70],
       ['hype', 'Sam Rivera', 61],
       ['night-owl', 'Jordan Lee', 100],
       ['double-texter', 'You', 20],
     ])
+  })
+
+  it('times how fast each person joins the conversations Alex starts', () => {
+    const byName = (record: Record<string, number>) =>
+      Object.fromEntries(Object.entries(record).map(([id, n]) => [nameOf(wrap, id), n]))
+    // Alex starts every evening, so Alex is never timed.
+    expect(byName(wrap.replies.medianReplyMinutesByPerson)).toEqual({
+      'Sam Rivera': 4, You: 14, 'Riley Park': 45, 'Jordan Lee': 314,
+    })
+    expect(byName(wrap.replies.repliesByPerson)).toEqual({
+      'Sam Rivera': 60, You: 60, 'Riley Park': 6, 'Jordan Lee': 60,
+    })
   })
 
   it('finds the streak, the greatest hits and the signature words', () => {

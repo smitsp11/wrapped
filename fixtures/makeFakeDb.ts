@@ -11,6 +11,9 @@ export const FAKE_PEOPLE = {
   riley: { handle: '+14165550104', name: 'Riley Park' },
 } as const
 
+/** The phone number and email the fake "me" sends from (on my own messages, like Messages records them). */
+export const FAKE_ME = { phone: '+14165550100', email: 'me@example.com' } as const
+
 type Friend = keyof typeof FAKE_PEOPLE
 type Sender = Friend | 'me'
 
@@ -24,7 +27,8 @@ const SCHEMA = `
     ROWID INTEGER PRIMARY KEY AUTOINCREMENT, guid TEXT UNIQUE NOT NULL, text TEXT, attributedBody BLOB,
     handle_id INTEGER DEFAULT 0, date INTEGER, is_from_me INTEGER DEFAULT 0, item_type INTEGER DEFAULT 0,
     cache_has_attachments INTEGER DEFAULT 0, associated_message_guid TEXT,
-    associated_message_type INTEGER DEFAULT 0, associated_message_emoji TEXT
+    associated_message_type INTEGER DEFAULT 0, associated_message_emoji TEXT,
+    destination_caller_id TEXT, account TEXT
   );
   CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER, message_date INTEGER DEFAULT 0, PRIMARY KEY (chat_id, message_id));
   CREATE TABLE chat_handle_join (chat_id INTEGER, handle_id INTEGER, UNIQUE (chat_id, handle_id));
@@ -36,7 +40,7 @@ const REMOVE_LAUGH = 3003
 const GROUP_STYLE = 43
 const DM_STYLE = 45
 
-/** Riley's late-night notes, one every ten days. Each starts with "heyyy", Riley's signature word. */
+/** Riley's notes, one every ten days, 45 minutes into the evening. Each starts with "heyyy", Riley's signature word. */
 const RILEY_NOTES = [
   "heyyy who's hosting friday",
   'heyyy the buy-in is snacks',
@@ -73,8 +77,8 @@ export function makeFakeDb(dir: string): FakeDb {
 
     const insertMessage = db.prepare(`
       INSERT INTO message (guid, text, attributedBody, handle_id, date, is_from_me, cache_has_attachments, item_type,
-        associated_message_guid, associated_message_type)
-      VALUES (@guid, @text, @body, @handleId, @date, @fromMe, @attachment, @itemType, @assocGuid, @assocType)`)
+        associated_message_guid, associated_message_type, destination_caller_id, account)
+      VALUES (@guid, @text, @body, @handleId, @date, @fromMe, @attachment, @itemType, @assocGuid, @assocType, @callerId, @account)`)
     const insertJoin = db.prepare('INSERT INTO chat_message_join (chat_id, message_id, message_date) VALUES (?, ?, ?)')
 
     let counter = 0
@@ -95,6 +99,8 @@ export function makeFakeDb(dir: string): FakeDb {
         itemType: opts.itemType ?? 0,
         assocGuid: opts.reactTo ? `p:0/${opts.reactTo}` : null,
         assocType: opts.reactType ?? 0,
+        callerId: fromMe ? FAKE_ME.phone : null,
+        account: fromMe ? `E:${FAKE_ME.email}` : null,
       })
       insertJoin.run(chatId, lastInsertRowid, date)
       return guid
@@ -119,6 +125,7 @@ export function makeFakeDb(dir: string): FakeDb {
         if (d === 7) for (const who of ['me', 'jordan', 'riley'] as const) add(groupChatId, who, at(d, '20:20'), { reactTo: opener, reactType: LAUGH })
         if (d === 20) for (const who of ['alex', 'sam', 'jordan'] as const) add(groupChatId, who, at(d, '20:30'), { reactTo: omw, reactType: LOVE })
         if (d % 3 === 0) add(groupChatId, 'me', at(d, '20:40'), { text: 'who has the cards' })
+        if (d % 10 === 0) add(groupChatId, 'riley', at(d, '20:45'), { text: RILEY_NOTES[d / 10]! })
         if (d === 30) {
           add(groupChatId, 'riley', at(d, '20:50'), { reactTo: opener, reactType: LAUGH })
           add(groupChatId, 'riley', at(d, '20:51'), { reactTo: opener, reactType: REMOVE_LAUGH })
@@ -126,7 +133,6 @@ export function makeFakeDb(dir: string): FakeDb {
         if (d === 45) add(groupChatId, 'alex', at(d, '20:50'), { body: Buffer.from([1, 2, 3]) })
         const sorry = add(groupChatId, 'jordan', at(d + 1, '01:14'), { body: makeAttributedBody('sorry sorry, all in. rebuy?') })
         if (d % 2 === 0) add(groupChatId, 'alex', at(d + 1, '01:15'), { text: 'lol classic jordan' })
-        if (d % 10 === 0) add(groupChatId, 'riley', at(d + 1, '01:20'), { text: RILEY_NOTES[d / 10]! })
         if (d % 2 === 0) add(groupChatId, 'me', at(d + 1, '01:30'), { reactTo: sorry, reactType: LOVE })
       }
       for (let i = 0; i < 10; i++) {

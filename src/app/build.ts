@@ -6,16 +6,20 @@ import { saveWrap } from './store'
 export type Selection = { kind: 'solo' } | { kind: 'groups'; chatIds: number[] }
 export type BuildResult = { ids: string[]; failed: { title: string; message: string }[]; undecodable: number }
 
+/** Saved wraps are named after what they wrap, so the home page can tell which chats are already made. */
+export const soloWrapId = (year: number) => `me-${year}`
+export const groupWrapId = (title: string, chatId: number, year: number) => `${slug(title)}-${chatId}-${year}`
+
 /** Builds and saves each picked wrap. One chat failing (e.g. no messages in the period) doesn't stop the others. */
 export function buildSelection(session: Session, selection: Selection, appDir: string): BuildResult {
   const result: BuildResult = { ids: [], failed: [], undecodable: 0 }
   const year = session.period.year
   const jobs =
     selection.kind === 'solo'
-      ? [{ id: `me-${year}`, title: soloTitle(year), build: () => session.buildSolo() }]
+      ? [{ id: soloWrapId(year), title: soloTitle(year), build: () => session.buildSolo() }]
       : [...new Set(selection.chatIds)].map((chatId) => {
           const title = session.groups.find((g) => g.id === chatId)?.title ?? 'A group chat'
-          return { id: `${slug(title)}-${chatId}-${year}`, title, build: () => session.buildGroup(chatId) }
+          return { id: groupWrapId(title, chatId, year), title, build: () => session.buildGroup(chatId) }
         })
   for (const job of jobs) {
     try {

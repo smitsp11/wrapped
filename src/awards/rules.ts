@@ -8,9 +8,13 @@ import type { Award, AwardId } from '../types'
 
 /** Nobody wins anything on a handful of texts. */
 export const MIN_MESSAGES_FOR_AWARD = 50
-/** A median over a couple of replies says nothing, so The Ghost also needs this many replies. */
+/**
+ * A median over a couple of conversations says nothing, so The Ghost also needs to have joined this many conversations
+ * someone else started. Each conversation counts once now (not every reply), but 10 is still easy for anyone who's
+ * really in the chat, and enough for a fair median.
+ */
 export const MIN_REPLIES_FOR_GHOST = 10
-/** A "slowest replier" who answers within the hour isn't a ghost. */
+/** A "slowest replier" who typically shows up within the hour isn't a ghost. */
 export const GHOST_MIN_MINUTES = 60
 /** Starter, Double Texter and Hype Man need at least this many to count. */
 export const MIN_COUNT_AWARD = 3
@@ -47,7 +51,7 @@ type Rule = {
 
 const share = (person: string, s: AwardInputs) => (s.volume.byPerson[person] ?? 0) / s.volume.total
 
-/** The Ghost's median only counts with enough replies behind it. */
+/** The Ghost: the slowest median time to join a conversation, only counted with enough conversations behind it. */
 function ghostMinutes(person: string, s: AwardInputs): number | undefined {
   const enough = (s.replies.repliesByPerson[person] ?? 0) >= MIN_REPLIES_FOR_GHOST
   return enough ? s.replies.medianReplyMinutesByPerson[person] : undefined

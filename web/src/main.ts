@@ -100,13 +100,9 @@ function play(wrap: Wrap): void {
   }
   const render = () => {
     const slide = slides[index]!
-    const links =
-      slide.id === 'outro'
-        ? `<a class="button" href="#" data-restart>Watch again</a><a class="link" href="/">Make your own</a>`
-        : ''
     app.innerHTML = `
       <div class="progress">${slides.map((_, i) => `<span class="${i <= index ? 'done' : ''}"></span>`).join('')}</div>
-      <section class="slide" data-testid="slide" data-slide="${slide.id}" data-dir="${direction}">${slide.html}${links}</section>`
+      <section class="slide" data-testid="slide" data-slide="${slide.id}" data-dir="${direction}">${slide.html}</section>`
   }
   // Like Instagram stories: tap the left third of the card to go back, anywhere else to go forward.
   document.onclick = (event) => {

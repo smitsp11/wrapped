@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { makeAddressBook } from '../fixtures/makeAddressBook'
-import { FAKE_PEOPLE, makeFakeDb } from '../fixtures/makeFakeDb'
+import { FAKE_ME, FAKE_PEOPLE, makeFakeDb } from '../fixtures/makeFakeDb'
 import Database from 'better-sqlite3'
 import { ContactBook } from '../src/extract/contactBook'
 import { copyDatabase } from '../src/extract/copyDb'
@@ -19,6 +19,8 @@ makeAddressBook(path.join(home, 'Library', 'Application Support', 'AddressBook',
   { first: 'Alex', last: 'Chen', phones: [FAKE_PEOPLE.alex.handle] },
   { first: 'Jordan', last: 'Lee', emails: [FAKE_PEOPLE.jordan.handle] },
   { first: 'Samuel', last: 'Rivera', nickname: 'Sam', phones: [FAKE_PEOPLE.sam.handle] },
+  // My own card, so the sender name for shared group wraps comes from Contacts.
+  { first: 'Taylor', last: 'Morgan', phones: [FAKE_ME.phone] },
 ])
 
 /** A WAL database whose second batch lives ONLY in the -wal, copied while the writer is open (the real chat.db shape). */

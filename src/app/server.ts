@@ -1,22 +1,25 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { buildSelection, type Selection } from './build'
+import { buildSelection, groupWrapId, soloWrapId, type Selection } from './build'
+import type { Presence } from './presence'
 import type { Session } from './session'
-import { loadWrap } from './store'
+import { listWraps, loadSenderName, loadWrap, saveSenderName } from './store'
+import type { Update } from './update'
 
 export type ServerDeps = {
   token: string
   port: number
   site: string
-  /** "pick": picker B first. "wraps": straight to the Your wraps page with `ids`. */
-  mode: 'pick' | 'wraps'
-  ids: string[]
-  /** null when showing saved wraps without opening the Messages database */
-  session: Session | null
+  session: Session
   appDir: string
   webDir: string
   openMessages(link: string): Promise<void>
-  onDone(): void
+  /** counts the open pages, to quit after the last one closes */
+  presence: Presence
+  /** the page's "Close iMessage Wrapped" link */
+  onClose(): void
+  /** a newer published version, once the background check has found one */
+  update(): Update | null
 }
 
 const TYPES: Record<string, string> = {
@@ -25,6 +28,7 @@ const TYPES: Record<string, string> = {
 }
 
 const MAX_LINK = 16 * 1024
+export const MAX_SENDER_NAME = 40
 const json = (body: unknown, status = 200) => Response.json(body, { status })
 const empty = (status: number) => new Response(null, { status })
 
@@ -45,16 +49,9 @@ export async function handle(req: Request, deps: ServerDeps): Promise<Response> 
   if (!url.pathname.startsWith('/api/')) return serveFile(url.pathname, deps.webDir)
   if (req.headers.get('x-wrapped-token') !== deps.token) return empty(403)
 
-  if (req.method === 'GET' && url.pathname === '/api/state') {
-    const s = deps.session
-    return json({
-      mode: deps.mode, site: deps.site, ids: deps.ids,
-      period: s ? { label: s.period.label, year: s.period.year } : null,
-      groups: s ? s.groups : [],
-    })
-  }
+  if (req.method === 'GET' && url.pathname === '/api/state') return json(describe(deps))
+  if (req.method === 'GET' && url.pathname === '/api/session') return openPage(req, deps.presence)
   if (req.method === 'POST' && url.pathname === '/api/build') {
-    if (!deps.session) return empty(409)
     const selection = parseSelection(await req.json().catch(() => null))
     if (!selection) return empty(400)
     return json(buildSelection(deps.session, selection, deps.appDir))
@@ -73,11 +70,69 @@ export async function handle(req: Request, deps: ServerDeps): Promise<Response> 
     await deps.openMessages(body.link)
     return empty(204)
   }
-  if (req.method === 'POST' && url.pathname === '/api/done') {
-    deps.onDone()
+  if (req.method === 'POST' && url.pathname === '/api/sender-name') {
+    const body = (await req.json().catch(() => null)) as { name?: unknown } | null
+    if (typeof body?.name !== 'string' || body.name.trim().length > MAX_SENDER_NAME) return empty(400)
+    saveSenderName(deps.appDir, body.name.trim())
+    return empty(204)
+  }
+  if (req.method === 'POST' && url.pathname === '/api/close') {
+    deps.onClose()
     return empty(204)
   }
   return empty(404)
+}
+
+/** What the home page lists: My year and the group chats, each marked when a saved wrap already exists. */
+function describe(deps: ServerDeps) {
+  const { period, groups } = deps.session
+  const saved = new Set(listWraps(deps.appDir).map((w) => w.id))
+  const solo = soloWrapId(period.year)
+  return {
+    site: deps.site,
+    period: { label: period.label, year: period.year },
+    solo: { wrapId: solo, made: saved.has(solo) },
+    groups: groups.map((g) => {
+      const wrapId = groupWrapId(g.title, g.id, period.year)
+      return { ...g, wrapId, made: saved.has(wrapId) }
+    }),
+    senderName: loadSenderName(deps.appDir) ?? deps.session.senderName(),
+    update: deps.update(),
+  }
+}
+
+/**
+ * The page keeps this request open for as long as it's showing, and the app quits a minute after the last
+ * one closes. An open request rather than a heartbeat: browsers slow a hidden tab's timers down to about
+ * once a minute, so a heartbeat could lapse while you're over in Messages. A closed tab ends the request at once.
+ */
+function openPage(req: Request, presence: Presence): Response {
+  let ping: ReturnType<typeof setInterval> | undefined
+  let open = true
+  const close = () => {
+    if (!open) return
+    open = false
+    clearInterval(ping)
+    presence.pageClosed()
+  }
+  presence.pageOpened()
+  req.signal.addEventListener('abort', close)
+  const byte = new TextEncoder().encode('.')
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(byte)
+      // A byte every 5 s, so the connection never counts as idle (Bun drops idle ones after 10 s).
+      ping = setInterval(() => {
+        try {
+          controller.enqueue(byte)
+        } catch {
+          close()
+        }
+      }, 5_000)
+    },
+    cancel: close,
+  })
+  return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } })
 }
 
 function serveFile(pathname: string, webDir: string): Response {

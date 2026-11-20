@@ -11,7 +11,10 @@ const MAX_QUOTES = 3
 const MAX_SIGNATURES = 6
 /** the smallest bar stays visible */
 const MIN_BAR_PERCENT = 2
-/** a median over a handful of replies says little, so fewer than this don't make the fastest-repliers list */
+/**
+ * a median over a handful of conversations says little, so people who joined fewer than this many conversations
+ * someone else started don't make the fastest-repliers list
+ */
 const MIN_REPLIES_FOR_FASTEST = 5
 /** the id buildWrap gives the solo "Everyone else" bucket */
 
@@ -175,10 +178,11 @@ export function buildSlides(wrap: Wrap): Slide[] {
   )
   const replies = ranked(experienced, 'asc')
   if (replies.length > 0) {
-    // Each person's median reply time, so one slow night doesn't count against them. The aside says it's typical, not one reply.
+    // Each person's median time to join a conversation someone else started (timed from its first message), so one slow
+    // night doesn't count against them. The aside says it's typical, and that it's about jumping in, not every reply.
     slides.push({
       id: 'replies',
-      html: `<h2>Fastest repliers</h2>${aside('(typical reply time)')}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
+      html: `<h2>Fastest repliers</h2>${aside('(typical time to jump in)')}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
     })
   }
 
@@ -213,11 +217,18 @@ export function buildSlides(wrap: Wrap): Slide[] {
     })
   }
 
+  // Friends who watch a wrap are who make the next one, so the outro has one clear ask, plus Watch again.
+  // "/" is the landing page on whatever site is showing the wrap.
   slides.push({
     id: 'outro',
     html: `<h2 class="huge">That's a wrap</h2><p class="aside">see you next year</p>
       <div class="stage">
-        <p class="note taped">Made with iMessage Wrapped.</p>
+        <div class="note taped cta">
+          <p class="made">Made with iMessage Wrapped.</p>
+          <p class="hand">make one for your group chat</p>
+          <a class="button" href="/">Make yours (Mac)</a>
+        </div>
+        <a class="link" href="#" data-restart>Watch again</a>
       </div>`,
   })
   return slides
@@ -237,7 +248,9 @@ function wordsSlide(wrap: Wrap): Slide | null {
     .sort(([a], [b]) => sent(b) - sent(a))
     .slice(0, MAX_SIGNATURES)
     .map(([id, word]) => {
-      const who = id === 'me' ? 'You say' : `${escapeHtml(personName(wrap, id))} says`
+      // A shared group wrap may name the sender instead of "You" (see withSenderName).
+      const name = personName(wrap, id)
+      const who = id === 'me' && name === 'You' ? 'You say' : `${escapeHtml(name)} says`
       return `<li>${who} <b>“${escapeHtml(word)}”</b></li>`
     })
     .join('')

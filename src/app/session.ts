@@ -9,6 +9,7 @@ import { chatTitle, nameLookup, personLookup } from '../wrap/names'
 import { rankGroupChats, type RankedChat } from './chats'
 import { checkHistory, type HistoryCheck } from './history'
 import type { Period } from './period'
+import { defaultSenderName, macAccountName } from './senderName'
 
 /** The title of the solo wrap, used when building and when reporting a failure. */
 export function soloTitle(year: number): string {
@@ -17,19 +18,29 @@ export function soloTitle(year: number): string {
 
 export type Built = { wrap: Wrap; undecodable: number }
 
-/** One open database copy for the whole run: both pickers and the local server use it. */
+/** One open database copy for the whole run: the local server builds every wrap from it. */
 export type Session = {
   period: Period
   groups: RankedChat[]
   history: HistoryCheck
   buildGroup(chatId: number): Built
   buildSolo(): Built
+  /** your first name for shared group wraps, or '' (see senderName.ts) */
+  senderName(): string
   close(): void
 }
 
-export type SessionOptions = { openSqlite: OpenSqlite; dbPath: string; contacts: ContactBook; period: Period; now?: Date }
+export type SessionOptions = {
+  openSqlite: OpenSqlite
+  dbPath: string
+  contacts: ContactBook
+  period: Period
+  now?: Date
+  /** the Mac account's full name; tests pass their own */
+  accountName?: () => string
+}
 
-export function openSession({ openSqlite, dbPath, contacts, period, now = new Date() }: SessionOptions): Session {
+export function openSession({ openSqlite, dbPath, contacts, period, now = new Date(), accountName = macAccountName }: SessionOptions): Session {
   const db = MessagesDb.open(openSqlite, dbPath)
   try {
     const nameFor = nameLookup(contacts)
@@ -53,6 +64,9 @@ export function openSession({ openSqlite, dbPath, contacts, period, now = new Da
       buildSolo() {
         const { messages, undecodable } = normalizeRows(db.messageRows(range))
         return { wrap: buildWrap(messages, { mode: 'solo', title: soloTitle(period.year), ...range, nameFor, chats }), undecodable }
+      },
+      senderName() {
+        return defaultSenderName(db.ownHandles(), contacts, accountName)
       },
       close() {
         if (closed) return

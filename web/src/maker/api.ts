@@ -12,20 +12,26 @@ const token = readToken()
 // Keep the token out of the address bar (history, screenshots, shared links).
 history.replaceState(null, '', location.pathname + location.hash)
 
-export type GroupCard = { id: number; title: string; messages: number; memberNames: string[] }
+/** A group chat on the home page. `wrapId` is the saved wrap it makes; `made` when that wrap already exists. */
+export type GroupRow = { id: number; title: string; messages: number; memberNames: string[]; wrapId: string; made: boolean }
 export type State = {
-  mode: 'pick' | 'wraps'
   site: string
-  period: { label: string; year: number } | null
-  groups: GroupCard[]
-  ids: string[]
+  period: { label: string; year: number }
+  solo: { wrapId: string; made: boolean }
+  groups: GroupRow[]
+  /** what to call "You" in shared group wraps; '' keeps "You" */
+  senderName: string
+  update: { current: string; latest: string } | null
 }
+export type Built = { ids: string[]; failed: { title: string; message: string }[] }
 
 /** Every call carries this run's token; the local server refuses anything without it. */
+export const headers = { 'x-wrapped-token': token, 'content-type': 'application/json' }
+
 export async function api<T>(pathname: string, body?: unknown): Promise<T> {
   const res = await fetch(pathname, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: { 'x-wrapped-token': token, 'content-type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`The app answered ${res.status}.`)

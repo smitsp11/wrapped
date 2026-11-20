@@ -6,6 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installerAddedToPath, startupFiles } from '../src/app/shellStartup'
+import { installedVersion, runUpdate } from '../src/app/update'
 
 const SCRIPT = path.resolve('site/install.sh')
 let dir: string
@@ -38,6 +39,8 @@ beforeAll(async () => {
   publish('1.0.0')
   server = http.createServer((req, res) => {
     // Like GitHub: the release download URL redirects to where the file really lives.
+    // Like the website: "/" answers curl with the installer (wrapped update runs curl -fsSL <site> | sh).
+    if (req.url === '/') return void res.writeHead(200).end(fs.readFileSync(SCRIPT))
     if (req.url?.startsWith('/download/')) {
       return void res.writeHead(302, { location: req.url.replace('/download/', '/files/') }).end()
     }
@@ -260,5 +263,26 @@ describe('the pinned installer (what release.sh deploys)', () => {
     expect(r.status).not.toBe(0)
     expect(r.stderr).toContain("isn't tied to a release")
     expect(fs.readdirSync(home)).toEqual([])
+  })
+})
+
+describe('wrapped update', () => {
+  const site = () => download.replace(/\/download$/, '')
+  const envFor = (home: string) => ({ ...process.env, HOME: home, ZDOTDIR: home, SHELL: '/bin/zsh', WRAPPED_DOWNLOAD: download })
+
+  it('reruns the install line: the new program replaces the old, still one PATH line, nothing started', async () => {
+    const home = newHome()
+    expect(await runUpdate(site(), envFor(home))).toBe(0)
+    expect(installedVersion(path.join(home, '.imessage-wrapped'))).toBe('1.0.0')
+    publish('1.1.0')
+    expect(await runUpdate(site(), envFor(home))).toBe(0)
+    expect(installedVersion(path.join(home, '.imessage-wrapped'))).toBe('1.1.0')
+    expect(fs.readFileSync(path.join(home, '.zshrc'), 'utf8').match(/added by iMessage Wrapped/g)).toHaveLength(1)
+  })
+  it('fails, changing nothing, when the site cannot be reached', async () => {
+    const home = newHome()
+    expect(await runUpdate(`${site()}/missing`, envFor(home))).not.toBe(0)
+    expect(fs.existsSync(binOf(home))).toBe(false)
+    expect(installedVersion(path.join(home, '.imessage-wrapped'))).toBeNull()
   })
 })

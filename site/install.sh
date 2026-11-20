@@ -115,9 +115,11 @@ main() {
     printf '%s Next time run:  %s/wrapped\n' "$DONE" "$BIN_DIR"
   fi
   [ "${WRAPPED_NO_RUN:-}" = 1 ] && exit 0
-  # This script arrives through a pipe, so give the program the keyboard back.
+  # This script arrives through a pipe, so give the program the keyboard back. Bun can't wait on a
+  # freshly opened /dev/tty on macOS (kqueue says EINVAL), so script(1) gives it a terminal of its own
+  # and passes the keys through.
   if (: < /dev/tty) 2>/dev/null; then
-    exec "$BIN_DIR/wrapped" < /dev/tty
+    exec script -q /dev/null "$BIN_DIR/wrapped" < /dev/tty
   else
     printf 'To start it now, run: %s/wrapped\n' "$BIN_DIR"
   fi

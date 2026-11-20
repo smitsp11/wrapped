@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSlides, escapeHtml, periodLabel } from '../../web/src/slides'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
+import { withSenderName } from '../../src/share/senderName'
 
 describe('buildSlides', () => {
   it('builds the group slide sequence', () => {
@@ -90,19 +91,31 @@ describe('buildSlides', () => {
     expect(html).toContain('Alex Chen says <b>')
   })
 
+  it("uses the sender's name everywhere when a shared group wrap names them", () => {
+    const wrap = withSenderName(makeFakeWrap('group'), 'Smit')
+    wrap.words.signatureWordByPerson = { me: 'omw' }
+    const html = buildSlides(wrap).map((s) => s.html).join('')
+    expect(slideHtml(wrap, 'words')).toContain('Smit says <b>')
+    expect(html).not.toMatch(/\bYou say\b|>You</)
+    expect(html).toContain('Smit')
+  })
+
   it('makes the fastest replier the full bar and lists them first', () => {
     const html = slideHtml(makeFakeWrap('group'), 'replies')
     const widths = [...html.matchAll(/--w:([\d.]+)%/g)].map((m) => Number(m[1]))
-    expect(html.indexOf('Alex Chen')).toBeLessThan(html.indexOf('Sam Rivera'))
+    expect(html.indexOf('Sam Rivera')).toBeGreaterThan(-1)
+    expect(html.indexOf('Sam Rivera')).toBeLessThan(html.indexOf('Jordan Lee'))
+    // Alex starts every fake conversation, and the starter is never timed.
+    expect(html).not.toContain('Alex Chen')
     expect(widths[0]).toBe(100)
     expect(widths[widths.length - 1]).toBeLessThan(100)
   })
 
-  it('titles the replies slide as typical per person and shows seconds under a minute', () => {
+  it('titles the replies slide as the typical time to jump in and shows seconds under a minute', () => {
     const wrap = makeFakeWrap('group')
-    wrap.replies.medianReplyMinutesByPerson.p1 = 0.68
+    wrap.replies.medianReplyMinutesByPerson.p2 = 0.68
     const html = slideHtml(wrap, 'replies')
-    expect(html).toContain('<h2>Fastest repliers</h2><p class="aside">(typical reply time)</p>')
+    expect(html).toContain('<h2>Fastest repliers</h2><p class="aside">(typical time to jump in)</p>')
     expect(html.match(/class="aside"/g)).toHaveLength(1)
     expect(html).toContain('41 sec')
     expect(html).not.toContain('>0 min<')
@@ -114,7 +127,7 @@ describe('buildSlides', () => {
     expect(slideHtml(wrap, `award-${wrap.awards[0]!.id}`)).toContain('class="big winner" style="--len:17"')
   })
 
-  it('leaves people with fewer than 5 replies out of fastest replies', () => {
+  it('leaves people who joined fewer than 5 conversations out of fastest replies', () => {
     const wrap = makeFakeWrap('group')
     wrap.replies.medianReplyMinutesByPerson.p4 = 0.5
     wrap.replies.repliesByPerson.p4 = 4
@@ -172,6 +185,16 @@ describe('buildSlides', () => {
     wrap.reactions.givenByPerson = {}
     const ids = buildSlides(wrap).map((s) => s.id)
     expect(ids).toEqual(['intro', 'volume', 'hours', 'streak', 'words', 'outro'])
+  })
+
+  it('ends with one ask to make your own, on this site, plus Watch again', () => {
+    const html = slideHtml(makeFakeWrap('group'), 'outro')
+    expect(html).toContain('Made with iMessage Wrapped.')
+    expect(html).toContain('make one for your group chat')
+    expect(html).toContain('<a class="button" href="/">Make yours (Mac)</a>')
+    expect(html).toContain('data-restart>Watch again</a>')
+    expect(html.match(/class="button"/g)).toHaveLength(1)
+    expect(html).not.toMatch(/private|upload/i)
   })
 
   it('hides the emoji and word lists when empty', () => {

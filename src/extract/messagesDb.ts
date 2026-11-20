@@ -126,6 +126,29 @@ export class MessagesDb {
     return { earliest: appleMsToDate(row.first), latest: appleMsToDate(row.last) }
   }
 
+  /**
+   * The phone numbers and emails you send from, most used first, for finding your own contact card.
+   * Messages notes them on your sent messages: destination_caller_id ("+14165550100") and account
+   * ("E:me@icloud.com", "P:+1416…"); older databases may lack either column. Handles only, never text.
+   */
+  ownHandles(): string[] {
+    const columns = new Set(this.db.all<{ name: string }>('PRAGMA table_info(message)').map((c) => c.name))
+    const counts = new Map<string, number>()
+    for (const column of ['destination_caller_id', 'account']) {
+      if (!columns.has(column)) continue
+      const rows = this.db.all<{ handle: string; n: number }>(
+        `SELECT ${column} AS handle, COUNT(*) AS n FROM message
+         WHERE is_from_me = 1 AND ${column} IS NOT NULL AND ${column} != ''
+         GROUP BY ${column} ORDER BY n DESC LIMIT 5`,
+      )
+      for (const row of rows) {
+        const handle = row.handle.replace(/^[a-z]:/i, '') // "E:" / "P:" say which kind it is
+        counts.set(handle, (counts.get(handle) ?? 0) + row.n)
+      }
+    }
+    return [...counts].sort((a, b) => b[1] - a[1]).map(([handle]) => handle)
+  }
+
   close(): void {
     try {
       this.db.close()

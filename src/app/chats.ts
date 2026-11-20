@@ -1,9 +1,6 @@
 import type { Chat } from '../types'
 import { chatTitle, shortNames, type PersonName } from '../wrap/names'
 
-/** How many group chats the pickers show before "See all". */
-export const TOP_GROUPS = 5
-
 export type RankedChat = { id: number; title: string; messages: number; memberNames: string[] }
 
 /** Group chats with messages in the period, busiest first (ties: older chat first). */

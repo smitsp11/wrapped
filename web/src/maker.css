@@ -1,5 +1,6 @@
-/* The maker page (pick chats, review, send) in the same Scrapbook theme as the viewer. Tokens are in styles.css. */
-#maker { width: 100%; min-height: 100dvh; display: flex; justify-content: center; padding: 24px 16px; }
+/* The maker page (home, one wrap, send, post yours) in the same Scrapbook theme as the viewer. Tokens are in styles.css. */
+body { align-content: start; }
+#maker { width: 100%; display: flex; justify-content: center; padding: 24px 16px 8px; }
 .panel {
   min-width: 0; overflow-wrap: anywhere; width: min(960px, 100%); display: flex; flex-direction: column; gap: 16px;
   align-self: flex-start; padding: 28px 32px 36px; border-radius: 6px;
@@ -7,41 +8,116 @@
   box-shadow: 0 1px 0 rgba(43, 33, 24, 0.08), 0 22px 50px -18px rgba(43, 33, 24, 0.45);
 }
 @media (max-width: 500px) { #maker { padding: 0; } .panel { padding: 24px 18px 32px; border-radius: 0; box-shadow: none; } }
-.panel h2 { margin-top: 4px; }
-/* Section labels ("① Watch it") are handwritten, like the slides' asides. */
-.panel h3 { margin: 4px 0 8px; font: 700 28px/1 var(--font-hand); color: var(--orange); }
-.review [data-send] h3 { margin-top: 18px; }
-
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-.card {
-  min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 4px; padding: 16px;
-  background: var(--card); color: inherit; border: 2px solid transparent; border-radius: 2px; box-shadow: var(--card-shadow);
-  text-align: left; cursor: pointer; font: inherit; transform: rotate(var(--tilt, 0deg)); transition: transform 160ms ease;
-}
-.grid .card:nth-child(odd) { --tilt: -0.8deg; }
-.grid .card:nth-child(even) { --tilt: 0.8deg; }
-.card:hover { transform: rotate(0deg) translateY(-2px); }
-.card.on { border-color: var(--ink); --tilt: 0deg; }
-.card .title, .card .big { font-weight: 800; font-size: 1.2rem; }
-.card .members { color: var(--ink-muted); font-size: 0.9rem; }
-.card input { align-self: flex-end; width: 20px; height: 20px; }
-.mode { max-width: 360px; --tilt: -1deg; }
-.status { min-height: 1.5em; color: var(--ink-muted); }
-.wrap-page { display: grid; grid-template-columns: 340px 1fr; gap: 32px; }
-.wrap-page > * { min-width: 0; }
-.review { overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 6px; }
-.left-out { opacity: 0.5; }
-/* The preview phone sits in a white polaroid frame. */
-.phone { max-width: 100%; width: 320px; height: 600px; border: 10px solid var(--card); border-radius: 4px; background: var(--paper); box-shadow: var(--lift-shadow); }
-.review label { display: flex; gap: 8px; align-items: flex-start; }
-input[type='checkbox'] { accent-color: var(--orange); }
+.panel h2 { margin: 4px 0 0; font-size: clamp(30px, 6vw, 44px); line-height: 1; letter-spacing: -0.02em; }
+/* Section labels ("Group chats") are handwritten, like the slides' asides. */
+.panel h3 { margin: 8px 0 0; font: 700 30px/1 var(--font-hand); color: var(--orange); }
+.kicker { margin: 0; }
+.status { min-height: 1.5em; margin: 0; color: var(--ink-muted); }
+.hint { margin: 0; font-size: 0.85rem; color: var(--ink-muted); }
 .warn { color: var(--award-red); }
+.small { font-size: 0.9rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.cover { display: block; width: 100%; max-width: 320px; height: auto; margin: 8px 0 12px; box-shadow: var(--lift-shadow); transform: rotate(-1deg); }
-@media (max-width: 720px) { .wrap-page { grid-template-columns: 1fr; } .phone { width: 100%; } }
-@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
-
-.button:disabled { opacity: 0.45; cursor: not-allowed; }
-.card:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+input[type='checkbox'] { accent-color: var(--orange); }
+.button { margin-top: 0; }
+.button:disabled, .button[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+.button.secondary { background: var(--card); color: var(--ink); box-shadow: 0 0 0 2px var(--ink) inset, 0 3px 0 rgba(43, 33, 24, 0.3); }
 .link { align-self: flex-start; background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; cursor: pointer; }
 code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; border-radius: 4px; }
+
+/* ---------- Home: "What should we wrap?" ---------- */
+
+.update-note { margin: 0; display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--tape); border-radius: 2px; font-weight: 700; transform: rotate(-0.4deg); }
+.update-note .link { flex: none; text-decoration: none; }
+/* My year: a taped card, tilted a little. */
+.year-card {
+  position: relative; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: 22px 22px 20px; background: var(--card); box-shadow: var(--lift-shadow); transform: rotate(-0.8deg); margin-top: 6px;
+}
+.year-card::before { content: ''; position: absolute; top: -12px; left: 50%; width: 110px; height: 24px; margin-left: -55px; background: var(--tape); transform: rotate(-3deg); }
+.year-card > div { display: flex; flex-direction: column; gap: 2px; }
+.year-card .big { font-weight: 800; font-size: 1.5rem; }
+.year-card span:not(.big) { color: var(--ink-muted); }
+.search {
+  width: 100%; padding: 12px 16px; border: 2px solid var(--ink); border-radius: 999px; background: var(--card);
+  font: 600 16px/1.2 var(--font-body); color: var(--ink);
+}
+.search::placeholder { color: var(--ink-muted); }
+.chats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.chat-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; align-items: center;
+  padding: 12px 4px; border-bottom: 1.5px dashed var(--ink-faint);
+}
+.chat-row .who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-row .title { font-weight: 800; font-size: 1.1rem; }
+.chat-row .members, .chat-row .count { color: var(--ink-muted); font-size: 0.9rem; }
+.chat-row .button { padding: 9px 18px; font-size: 15px; }
+.chats .none { padding: 12px 4px; color: var(--ink-muted); }
+/* Made: a small green stamp instead of the button. */
+.made {
+  background: none; border: 2px solid var(--green); color: var(--green); border-radius: 4px; padding: 6px 12px;
+  font: 800 14px/1.2 var(--font-body); cursor: pointer; transform: rotate(-2deg); white-space: nowrap;
+}
+.made:hover { background: rgba(21, 128, 61, 0.08); }
+@media (max-width: 560px) {
+  .chat-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .chat-row .count { grid-row: 2; grid-column: 1; }
+  .chat-row .button, .chat-row .made { grid-row: 1 / span 2; grid-column: 2; }
+}
+
+/* ---------- One wrap ---------- */
+
+.back { font-size: 0.95rem; }
+.wrap-page { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px; align-items: start; }
+/* The preview phone sits in a white polaroid frame. */
+.phone { max-width: 100%; width: 320px; height: 600px; border: 10px solid var(--card); border-radius: 4px; background: var(--paper); box-shadow: var(--lift-shadow); }
+.send-column { min-width: 0; display: flex; flex-direction: column; gap: 14px; padding-top: 8px; }
+/* "Your name in the wrap": a small inline field above Send. */
+.sender-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.95rem; font-weight: 700; color: var(--ink-muted); }
+.sender-name input {
+  flex: 1 1 120px; min-width: 0; max-width: 200px; padding: 6px 2px; border: 0; border-bottom: 2px solid var(--ink); background: transparent;
+  font: 700 18px/1.2 var(--font-body); color: var(--ink);
+}
+.sender-name input:focus-visible { outline: none; border-bottom-color: var(--blue); }
+.button.send { align-self: stretch; padding: 16px 22px; font-size: 18px; }
+.sent-note { min-height: 1.5em; margin: -4px 0 0; font-weight: 600; }
+.sent-note .check {
+  display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; margin-right: 4px; border-radius: 50%;
+  background: var(--green); color: var(--card); font-size: 0.85em; animation: check-pop 360ms cubic-bezier(0.2, 0.8, 0.2, 1.4) both;
+}
+@keyframes check-pop { from { transform: scale(0.2) rotate(-30deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.sent-note:not(:empty) { animation: note-in 300ms ease both; }
+@keyframes note-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+[data-error]:empty { display: none; }
+.cover-row { display: flex; gap: 14px; align-items: center; }
+.cover-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cover { width: 84px; height: auto; flex: none; box-shadow: var(--card-shadow); transform: rotate(-2deg); background: var(--card); }
+.cover:not([src]) { visibility: hidden; }
+.includes { border-top: 1.5px dashed var(--ink-faint); padding-top: 12px; }
+.summary { margin: 0; }
+.review { overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.review label { display: flex; gap: 8px; align-items: flex-start; }
+.left-out { opacity: 0.5; }
+
+/* ---------- Now post yours ---------- */
+
+.post { margin-top: 12px; padding-top: 18px; border-top: 2px dashed var(--ink-faint); display: flex; flex-direction: column; gap: 10px; animation: note-in 300ms ease both; }
+.post p { margin: 0; }
+.post-row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+.card-frame { width: 200px; min-height: 120px; display: grid; place-items: center; }
+.you-card { width: 200px; height: auto; box-shadow: var(--lift-shadow); transform: rotate(-1.5deg); }
+.post-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.button.another { margin-top: 10px; }
+
+@media (max-width: 720px) {
+  .wrap-page { grid-template-columns: 1fr; }
+  .phone { width: 100%; height: 560px; }
+  .card-frame, .you-card { width: 160px; }
+}
+
+/* ---------- Footer and the closed page ---------- */
+
+.maker-footer { width: 100%; display: flex; justify-content: center; padding: 12px 16px 28px; }
+.maker-footer .link { font-weight: 600; color: var(--ink-muted); }
+.closed { align-items: flex-start; }
+
+@media (prefers-reduced-motion: reduce) { .sent-note .check, .sent-note:not(:empty), .post { animation: none; } }

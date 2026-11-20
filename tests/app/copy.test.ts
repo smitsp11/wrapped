@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BETA_TAG, DONE, INTRO, MISSING_DB, accessSteps, historyLine, noAccess, welcomeLines } from '../../src/app/copy'
+import { BETA_TAG, INTRO, MISSING_DB, UPDATE_FAILED, accessSteps, historyLine, noAccess, openLines, stoppedLine, updatedLine, welcomeLines } from '../../src/app/copy'
 
 describe('copy', () => {
   it('says how far back history goes', () => {
@@ -45,9 +45,25 @@ describe('copy', () => {
   it('mentions the startup file only when the installer added the line', () => {
     expect(welcomeLines(true).join('\n')).toContain('Added  wrapped  to your shell\'s startup file')
     expect(welcomeLines(false).join('\n')).not.toContain('startup file')
-    expect(welcomeLines(false)).toContain('• You see everything before you share anything')
+    expect(welcomeLines(false)).toEqual(['Reads Messages on this Mac to make your wraps.'])
   })
-  it('ends with a plain done line and no feedback ask', () => {
-    expect(DONE).toBe('All done ✓')
+  it('keeps the welcome to one neutral line, with no privacy reassurance', () => {
+    const text = welcomeLines(true).join('\n').toLowerCase()
+    for (const doubt of ['upload', 'only', 'private', 'leave', 'ai']) expect(text).not.toMatch(new RegExp(`\\b${doubt}\\b`))
+  })
+  it('says the page is open and how to reopen it or quit', () => {
+    expect(openLines('http://127.0.0.1:1/?t=x')).toEqual([
+      'iMessage Wrapped is open in your browser: http://127.0.0.1:1/?t=x',
+      'Keep this window open. Press o to reopen the page, q to quit.',
+    ])
+  })
+  it('says why it stopped and how to come back', () => {
+    expect(stoppedLine('idle')).toContain('The page was closed')
+    for (const reason of ['idle', 'closed', 'quit'] as const) expect(stoppedLine(reason)).toContain('Type  wrapped  to open it again.')
+  })
+  it('says what  wrapped update  did', () => {
+    expect(updatedLine('0.2.0-beta.4')).toBe('Updated to 0.2.0-beta.4. Type  wrapped  to start it.')
+    expect(updatedLine(null)).toBe('Updated. Type  wrapped  to start it.')
+    expect(UPDATE_FAILED).toContain('nothing changed')
   })
 })

@@ -39,6 +39,8 @@ cp -R web/dist/. deploy/
 mv deploy/index.html deploy/home.html
 cp site/vercel.json deploy/
 sh scripts/pin-installer.sh "$VERSION" > deploy/install.sh
+# The program checks this on start to say when there's an update (src/app/update.ts).
+printf '{"version":"%s"}\n' "$VERSION" > deploy/version.json
 
 du -sh release/*.tar.gz deploy
 
