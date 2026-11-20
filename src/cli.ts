@@ -1,0 +1,292 @@
+import { execFile } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import readline from 'node:readline/promises'
+import { parseArgs } from 'node:util'
+// The demo command deliberately reuses the test fixture, so the demo and the tests show the same fake chat.
+import { makeFakeWrap } from '../fixtures/fakeWrap'
+import { findChat, isYes, looksLikeContactInfo, numbersToRemove, parseYear, slug } from './cliHelpers'
+import { BrokenLinkError, NewerVersionError, WrappedError } from './errors'
+import { ContactBook } from './extract/contactBook'
+import { DEFAULT_CHAT_DB, MessagesDb } from './extract/messagesDb'
+import { normalizeRows } from './extract/normalize'
+import { openNodeSqlite } from './extract/sqliteNode'
+import { fitToLimit } from './share/pack'
+import type { Hit } from './stats/greatestHits'
+import { parseWrap } from './share/parseWrap'
+import type { Chat, Wrap } from './types'
+import { buildWrap } from './wrap/buildWrap'
+import { chatTitle, nameLookup, personLookup } from './wrap/names'
+
+/** Where links point. Only the part after "#" carries data, and browsers never send it to the server. */
+const SITE = (process.env.WRAPPED_SITE ?? 'http://localhost:5173').replace(/\/+$/, '')
+const OUT_DIR = 'out'
+const LIST_LIMIT = 30
+
+const USAGE = `Usage:
+  npm run wrapped -- list                          your chats, busiest first
+  npm run wrapped -- group <chat id or name> [--year 2026]
+  npm run wrapped -- me [--year 2026]
+  npm run wrapped -- share out/<file>.json
+  npm run wrapped -- demo [--out file.json]        a fake group chat, no Full Disk Access needed
+
+Add --db <path> to any command to use a different chat.db (for testing).`
+
+async function main(): Promise<void> {
+  const { positionals, values } = parseFlags()
+  const [command, arg] = positionals
+  const year = parseYear(values.year)
+  const dbPath = values.db ?? DEFAULT_CHAT_DB
+
+  switch (command) {
+    case undefined:
+      console.log(USAGE)
+      return
+    case 'list':
+      return list(dbPath)
+    case 'group':
+      if (!arg) throw new WrappedError(USAGE)
+      return group(dbPath, arg, year)
+    case 'me':
+      return solo(dbPath, year)
+    case 'share':
+      if (!arg) throw new WrappedError(USAGE)
+      return share(arg)
+    case 'demo':
+      return demo(values.out)
+    default:
+      throw new WrappedError(`Unknown command "${command}".\n\n${USAGE}`)
+  }
+}
+
+function parseFlags() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: { year: { type: 'string' }, db: { type: 'string' }, out: { type: 'string' } },
+    })
+  } catch (err) {
+    throw new WrappedError(`${(err as Error).message}\n\n${USAGE}`)
+  }
+}
+
+const STOP_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
+
+/** Opens the database copy, and makes sure the private temp copy is removed however this ends (including Ctrl-C or a closed terminal). */
+async function withDb<T>(dbPath: string, fn: (db: MessagesDb) => Promise<T> | T): Promise<T> {
+  const db = MessagesDb.open(openNodeSqlite, dbPath)
+  const handlers = STOP_SIGNALS.map((signal) => {
+    const onSignal = () => {
+      db.close()
+      process.exit(128 + os.constants.signals[signal])
+    }
+    process.once(signal, onSignal)
+    return [signal, onSignal] as const
+  })
+  try {
+    return await fn(db)
+  } finally {
+    for (const [signal, onSignal] of handlers) process.removeListener(signal, onSignal)
+    db.close()
+  }
+}
+
+/** Contacts are optional: without them, names are masked. */
+function loadContacts(): ContactBook {
+  let contacts: ContactBook
+  try {
+    contacts = ContactBook.fromMac(openNodeSqlite)
+  } catch {
+    console.log("Couldn't read Contacts, so names will be masked.")
+    return new ContactBook([])
+  }
+  if (contacts.skippedSources > 0) console.log(`Skipped ${contacts.skippedSources} contact source(s) that couldn't be read.`)
+  return contacts
+}
+
+async function list(dbPath: string): Promise<void> {
+  await withDb(dbPath, (db) => {
+    const contacts = loadContacts()
+    for (const chat of loadChats(db, contacts).slice(0, LIST_LIMIT)) {
+      const kind = chat.isGroup ? 'group' : 'dm   '
+      console.log(`${String(chat.id).padStart(6)}  ${String(chat.messageCount).padStart(7)} msgs  ${kind}  ${chat.name}`)
+    }
+  })
+}
+
+async function group(dbPath: string, query: string, year: number): Promise<void> {
+  await withDb(dbPath, async (db) => {
+    const contacts = loadContacts()
+    const chat = findChat(loadChats(db, contacts), query)
+    const { from, to } = yearRange(year)
+    const { messages, undecodable } = normalizeRows(db.messageRows({ chatIds: [chat.id], from, to }))
+    const wrap = buildWrap(messages, { mode: 'group', title: chat.name, from, to, nameFor: nameLookup(contacts) })
+    report(saveWrap(wrap, `${slug(chat.name)}-${year}.json`), undecodable)
+    await preview(wrap)
+  })
+}
+
+async function solo(dbPath: string, year: number): Promise<void> {
+  await withDb(dbPath, async (db) => {
+    const contacts = loadContacts()
+    const chats = loadChats(db, contacts)
+    const { from, to } = yearRange(year)
+    const { messages, undecodable } = normalizeRows(db.messageRows({ from, to }))
+    const wrap = buildWrap(messages, { mode: 'solo', title: `Your ${year}`, from, to, nameFor: nameLookup(contacts), chats })
+    report(saveWrap(wrap, `me-${year}.json`), undecodable)
+    await preview(wrap)
+  })
+}
+
+/** Shows exactly what goes into the link and lets you drop quotes before making it. */
+async function share(file: string): Promise<void> {
+  const wrap = readWrapFile(file)
+  printReview(wrap)
+
+  const rl = readline.createInterface({ input: process.stdin })
+  // Reading lines from one iterator keeps piped input working (rl.question loses lines that arrive before it is asked).
+  const lines = rl[Symbol.asyncIterator]()
+  const ask = async (prompt: string): Promise<string> => {
+    process.stdout.write(prompt)
+    const line = await lines.next()
+    if (line.done) console.log()
+    return line.done ? '' : line.value
+  }
+  try {
+    const signatures = Object.entries(wrap.words.signatureWordByPerson)
+    // Signature words and quotes can name people outside the chat, so each one can be removed.
+    const dropSignatures = await askWhatToRemove(ask, 'Signature word numbers to remove', signatures.length)
+    const dropQuotes = await askWhatToRemove(ask, 'Quote numbers to remove', wrap.greatestHits.length)
+    console.log(`\n${describeRemovals(dropSignatures, dropQuotes)}`)
+    if (!isYes(await ask('Make the link? (y/n) '))) {
+      console.log('No link made.')
+      return
+    }
+    const reviewed: Wrap = {
+      ...wrap,
+      words: { ...wrap.words, signatureWordByPerson: Object.fromEntries(signatures.filter((_, i) => !dropSignatures.has(i))) },
+      greatestHits: wrap.greatestHits.filter((_, i) => !dropQuotes.has(i)),
+    }
+    const { packed, dropped } = await fitToLimit(reviewed)
+    printDropped(dropped)
+    console.log(`\n${SITE}/#${packed}\n`)
+  } finally {
+    rl.close()
+  }
+}
+
+/** The one place message text is printed: the person sees exactly what the link will carry. */
+function printReview(wrap: Wrap): void {
+  const name = (id: string) => wrap.people[id] ?? 'Someone'
+  console.log('This link will contain:\n')
+  console.log(`  Title:  ${wrap.title}`)
+  console.log(`  People: ${Object.values(wrap.people).join(', ')}`)
+  console.log(`  Awards: ${wrap.awards.map((a) => `${a.title} → ${name(a.personId)}`).join('; ')}`)
+  if (wrap.topChats.length > 0) console.log(`  Top chats: ${wrap.topChats.map((c) => c.name).join(', ')}`)
+  console.log(`  Top words: ${wrap.words.topWords.map((w) => w.word).join(', ')}`)
+  console.log('  Signature words:')
+  Object.entries(wrap.words.signatureWordByPerson).forEach(([id, word], i) => console.log(`    ${i + 1}. ${name(id)}: "${word}"`))
+  console.log('  Quotes:')
+  wrap.greatestHits.forEach((hit, i) => {
+    console.log(`    ${i + 1}. "${hit.text}" (${name(hit.senderId)})`)
+    if (looksLikeContactInfo(hit.text)) console.log('       ⚠ contains what looks like a phone number or email')
+  })
+}
+
+/** Asks until the answer is a valid list of numbers (or empty). Bad input is never silently ignored. */
+async function askWhatToRemove(ask: (prompt: string) => Promise<string>, what: string, count: number): Promise<Set<number>> {
+  if (count === 0) return new Set()
+  for (;;) {
+    const result = numbersToRemove(await ask(`\n${what} (e.g. 1 3), or Enter to keep all: `), count)
+    if ('remove' in result) return result.remove
+    console.log(`${result.error} Try again.`)
+  }
+}
+
+function describeRemovals(signatures: Set<number>, quotes: Set<number>): string {
+  const numbers = (set: Set<number>) => [...set].map((i) => i + 1).sort((a, b) => a - b).join(', ')
+  const parts: string[] = []
+  if (signatures.size > 0) parts.push(`signature word${signatures.size > 1 ? 's' : ''} ${numbers(signatures)}`)
+  if (quotes.size > 0) parts.push(`quote${quotes.size > 1 ? 's' : ''} ${numbers(quotes)}`)
+  return parts.length > 0 ? `Removing ${parts.join(' and ')}.` : 'Nothing will be removed.'
+}
+
+function printDropped(dropped: Hit[]): void {
+  if (dropped.length === 0) return
+  console.log(`Removed ${dropped.length} more quote(s) so the link isn't too long:`)
+  for (const hit of dropped) console.log(`  "${hit.text}"`)
+}
+
+/** Reads a saved wrap, and gives a clear error for a missing, hand-edited or wrong file. */
+function readWrapFile(file: string): Wrap {
+  let text: string
+  try {
+    text = fs.readFileSync(file, 'utf8')
+  } catch {
+    throw new WrappedError(`Couldn't read ${file}.`)
+  }
+  try {
+    return parseWrap(JSON.parse(text))
+  } catch (err) {
+    if (err instanceof NewerVersionError) throw err
+    if (err instanceof SyntaxError || err instanceof BrokenLinkError) {
+      throw new WrappedError(`${file} isn't a valid wrap file. Use a file that "group", "me" or "demo" saved.`)
+    }
+    throw err
+  }
+}
+
+async function demo(out: string | undefined): Promise<void> {
+  process.env.TZ = 'UTC' // the fake chat is scripted in UTC, so this keeps the demo the same everywhere
+  const wrap = makeFakeWrap('group')
+  if (out) {
+    fs.writeFileSync(out, JSON.stringify(wrap, null, 2))
+    console.log(`Saved ${out}`)
+    return
+  }
+  report(saveWrap(wrap, 'demo.json'), 0)
+  await preview(wrap)
+}
+
+function loadChats(db: MessagesDb, contacts: ContactBook): Chat[] {
+  return db.listChats().map((chat) => ({ ...chat, name: chatTitle(chat, personLookup(contacts)) }))
+}
+
+function yearRange(year: number): { from: Date; to: Date } {
+  return { from: new Date(year, 0, 1), to: new Date(year + 1, 0, 1) }
+}
+
+function saveWrap(wrap: Wrap, fileName: string): string {
+  fs.mkdirSync(OUT_DIR, { recursive: true })
+  const file = path.join(OUT_DIR, fileName)
+  fs.writeFileSync(file, JSON.stringify(wrap, null, 2))
+  return file
+}
+
+function report(file: string, undecodable: number): void {
+  console.log(`Saved ${file}`)
+  console.log('It has names and quotes in it and stays on this Mac (out/ is gitignored).')
+  if (undecodable > 0) console.log(`Skipped ${undecodable} message(s) that couldn't be decoded.`)
+}
+
+async function preview(wrap: Wrap): Promise<void> {
+  const { packed, dropped } = await fitToLimit(wrap)
+  if (dropped.length > 0) console.log(`Left ${dropped.length} quote(s) out of the preview so the link isn't too long.`)
+  const url = `${SITE}/#${packed}`
+  console.log('Opening the preview. If the page is blank, start the viewer with: npm run web:dev')
+  execFile('open', [url], (err) => {
+    if (err) console.log(`Couldn't open a browser. Start the viewer with \`npm run web:dev\` and open this link:\n${url}`)
+  })
+}
+
+main().catch((err: unknown) => {
+  if (err instanceof WrappedError) {
+    console.error(err.message)
+  } else if (process.env.DEBUG) {
+    console.error(err)
+  } else {
+    console.error(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  process.exit(1)
+})

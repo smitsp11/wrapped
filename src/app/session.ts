@@ -1,0 +1,78 @@
+import { WrappedError } from '../errors'
+import { ContactBook } from '../extract/contactBook'
+import { MessagesDb } from '../extract/messagesDb'
+import { normalizeRows } from '../extract/normalize'
+import type { OpenSqlite } from '../extract/sqlite'
+import type { Wrap } from '../types'
+import { buildWrap } from '../wrap/buildWrap'
+import { chatTitle, nameLookup, personLookup } from '../wrap/names'
+import { rankGroupChats, type RankedChat } from './chats'
+import { checkHistory, type HistoryCheck } from './history'
+import type { Period } from './period'
+
+/** The title of the solo wrap, used when building and when reporting a failure. */
+export function soloTitle(year: number): string {
+  return `Your ${year}`
+}
+
+export type Built = { wrap: Wrap; undecodable: number }
+
+/** One open database copy for the whole run: both pickers and the local server use it. */
+export type Session = {
+  period: Period
+  groups: RankedChat[]
+  history: HistoryCheck
+  buildGroup(chatId: number): Built
+  buildSolo(): Built
+  close(): void
+}
+
+export type SessionOptions = { openSqlite: OpenSqlite; dbPath: string; contacts: ContactBook; period: Period; now?: Date }
+
+export function openSession({ openSqlite, dbPath, contacts, period, now = new Date() }: SessionOptions): Session {
+  const db = MessagesDb.open(openSqlite, dbPath)
+  try {
+    const nameFor = nameLookup(contacts)
+    const personFor = personLookup(contacts)
+    const rawChats = db.listChats()
+    const chats = rawChats.map((c) => ({ ...c, name: chatTitle(c, personFor) }))
+    const groups = rankGroupChats(rawChats, db.messageCountsByChat(period.from, period.to), personFor)
+    const history = checkHistory(db.messageSpan(), period, now)
+    const range = { from: period.from, to: period.to }
+    let closed = false
+    return {
+      period,
+      groups,
+      history,
+      buildGroup(chatId) {
+        const chat = chats.find((c) => c.id === chatId && c.isGroup)
+        if (!chat) throw new WrappedError("That group chat isn't on this Mac anymore.")
+        const { messages, undecodable } = normalizeRows(db.messageRows({ chatIds: [chatId], ...range }))
+        return { wrap: buildWrap(messages, { mode: 'group', title: chat.name, ...range, nameFor }), undecodable }
+      },
+      buildSolo() {
+        const { messages, undecodable } = normalizeRows(db.messageRows(range))
+        return { wrap: buildWrap(messages, { mode: 'solo', title: soloTitle(period.year), ...range, nameFor, chats }), undecodable }
+      },
+      close() {
+        if (closed) return
+        closed = true
+        db.close()
+      },
+    }
+  } catch (err) {
+    db.close()
+    throw err
+  }
+}
+
+/** Contacts are optional: without them, names are masked. Returns a one-line note when something was skipped. */
+export function loadContactBook(openSqlite: OpenSqlite): { contacts: ContactBook; note: string | null } {
+  try {
+    const contacts = ContactBook.fromMac(openSqlite)
+    const note = contacts.skippedSources > 0 ? `Skipped ${contacts.skippedSources} contact source(s) that couldn't be read.` : null
+    return { contacts, note }
+  } catch {
+    return { contacts: new ContactBook([]), note: "Couldn't read Contacts, so names will be masked." }
+  }
+}

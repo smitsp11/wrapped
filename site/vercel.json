@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": { "pre": "curl/" } }], "destination": "/install.sh" },
+    { "source": "/", "destination": "/home.html" }
+  ],
+  "headers": [
+    { "source": "/install.sh", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }] }
+  ]
+}

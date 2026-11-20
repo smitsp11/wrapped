@@ -1,0 +1,287 @@
+@import './fonts.css';
+
+/* Scrapbook design tokens (direction C). */
+:root {
+  --paper: #F6EEDF;
+  --ink: #2B2118;
+  --ink-muted: #5C4A3A;
+  --ink-faint: rgba(43, 33, 24, 0.18);
+  --orange: #C2410C;
+  --blue: #1D4ED8;
+  --green: #15803D;
+  --purple: #7E22CE;
+  --award-paper: #FDE2E4;
+  --award-red: #BE123C;
+  --tape: rgba(255, 214, 102, 0.75);
+  --card: #FFFFFF;
+  --card-shadow: 0 2px 0 rgba(43, 33, 24, 0.14);
+  --lift-shadow: 0 6px 18px rgba(43, 33, 24, 0.14);
+  /* the table the page lies on, seen around the page on wide screens */
+  --desk: #E8DCC6;
+  /* faint paper grain: an SVG noise texture, inline so nothing is fetched */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .17 0 0 0 0 .13 0 0 0 0 .09 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --font-body: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  --font-hand: 'Caveat', 'Bricolage Grotesque', system-ui, cursive;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--desk); }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: radial-gradient(rgba(43, 33, 24, 0.09) 1px, transparent 1.5px) 0 0 / 22px 22px, var(--desk);
+  color: var(--ink);
+  font: 500 17px/1.4 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- The page: a 9:16 sheet of paper on desktop, the whole screen on phones ---------- */
+
+#app {
+  --card-h: min(100dvh - 32px, (100vw - 32px) * 16 / 9);
+  height: var(--card-h);
+  width: calc(var(--card-h) * 9 / 16);
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  container-type: inline-size;
+}
+.slide {
+  position: absolute; inset: 0;
+  padding: 50px 26px 26px;
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--grain), var(--paper);
+  color: var(--ink);
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(43, 33, 24, 0.08), 0 22px 50px -18px rgba(43, 33, 24, 0.45);
+  overflow-x: hidden; overflow-y: auto; overflow-wrap: anywhere; hyphens: auto;
+  animation: page-turn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: left center;
+}
+.slide[data-dir="back"] { animation-name: page-turn-back; transform-origin: right center; }
+.slide[data-slide^="award-"] { background: var(--grain), var(--award-paper); }
+/* The middle of a page: takes the free space and centres what's in it. */
+.stage { flex: 1 0 auto; display: flex; flex-direction: column; justify-content: safe center; gap: 16px; padding-block: 14px; }
+@media (max-width: 500px) {
+  #app { --card-h: 100dvh; width: 100vw; }
+  .slide { border-radius: 0; box-shadow: none; }
+  html { background: var(--paper); }
+}
+
+/* Progress: one segment per page, filled up to the current one. */
+.progress { position: absolute; top: max(20px, env(safe-area-inset-top)); left: 26px; right: 26px; display: flex; gap: 4px; z-index: 1; }
+.progress span { flex: 1; height: 4px; border-radius: 2px; background: var(--ink-faint); }
+.progress .done { background: var(--ink); }
+
+/* ---------- Type ---------- */
+
+h1, h2 { margin: 0; }
+h2 { font-size: clamp(32px, 11.3cqw, 44px); font-weight: 800; line-height: 0.95; letter-spacing: -0.03em; margin-top: 22px; text-wrap: balance; }
+p { margin: 0; }
+.kicker { font-size: 12px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-muted); margin-top: 6px; }
+/* The handwritten heading at the top of a page, in the accent colour. */
+.hand-title { font: 700 clamp(30px, 8.7cqw, 36px)/1.05 var(--font-hand); color: var(--orange); transform: rotate(-3deg); transform-origin: left; margin-top: 18px; }
+.slide[data-slide^="award-"] .hand-title { color: var(--award-red); }
+/* A handwritten aside under a heading, e.g. "(it's not close)". */
+.aside { font: 700 26px/1 var(--font-hand); color: var(--orange); transform: rotate(-2deg); transform-origin: left; margin-top: 2px; }
+.hand { font-family: var(--font-hand); font-weight: 700; }
+.lede { font-size: 19px; line-height: 1.4; text-align: center; max-width: 290px; align-self: center; }
+.big { font-weight: 800; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.huge { font-size: clamp(44px, 16cqw, 62px); margin-top: 40px; }
+.hint { font: 600 22px/1 var(--font-hand); color: var(--ink-muted); text-align: center; }
+.hint .touch { display: none; }
+@media (pointer: coarse) {
+  .hint .touch { display: inline; }
+  .hint .pointer { display: none; }
+}
+
+/* ---------- Things stuck to the page ---------- */
+
+/* Cards sit at a slight angle (--tilt) and settle into it as the page appears; --i staggers them. */
+.polaroid, .note, .calendar, .stamp, .chip, .bars li, .quotes figure, .signature li {
+  transform: rotate(var(--tilt, 0deg));
+  animation: settle 560ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  animation-delay: calc(140ms + var(--i, 0) * 70ms);
+}
+/* A strip of tape over the top edge. */
+.taped, .quotes figure { position: relative; }
+.taped::before, .quotes figure::before {
+  content: ''; position: absolute; top: -13px; left: 34%; width: 104px; height: 26px;
+  background: var(--tape); transform: rotate(-6deg); pointer-events: none;
+}
+.note { background: var(--card); padding: 18px; box-shadow: var(--card-shadow); --tilt: -1deg; }
+.label { font: 700 22px/1 var(--font-hand); color: var(--orange); margin-bottom: 6px; }
+
+/* Intro: the hero number as a polaroid. */
+.polaroid { align-self: center; background: var(--card); padding: 18px 18px 14px; box-shadow: var(--lift-shadow); --tilt: 2.5deg; }
+.polaroid .photo {
+  width: min(250px, 62cqw); aspect-ratio: 25 / 22; container-type: inline-size;
+  background: var(--ink); color: var(--paper);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.polaroid .big { font-size: min(108px, 160cqw / var(--len, 3)); line-height: 0.9; letter-spacing: -0.04em; }
+.polaroid .photo p:last-child { font-size: 18px; }
+.polaroid .hand { font-size: 28px; text-align: center; margin-top: 12px; }
+
+/* Ranked lists: tilted white cards with a coloured rank, name, bar and value. */
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.bars li {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 6px; align-items: center;
+  background: var(--card); padding: 10px 16px; box-shadow: var(--card-shadow);
+}
+.bars .rank { grid-row: 1 / 3; font: 700 30px/1 var(--font-hand); color: var(--rank-ink); }
+.bars .name { grid-row: 1; grid-column: 2; font-size: 19px; font-weight: 800; line-height: 1.15; }
+.bars .value { grid-row: 1 / 3; grid-column: 3; min-width: 3.4em; text-align: right; font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bars .bar { grid-row: 2; grid-column: 2; height: 10px; border-radius: 999px; background: rgba(43, 33, 24, 0.1); overflow: hidden; }
+.bars .bar::after {
+  content: ''; display: block; height: 100%; width: var(--w); border-radius: inherit; background: var(--rank-ink);
+  transform-origin: left; animation: grow 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(260ms + var(--i, 0) * 70ms);
+}
+.bars li:nth-child(6n + 1) { --rank-ink: var(--orange); --tilt: -1.5deg; --i: 0; }
+.bars li:nth-child(6n + 2) { --rank-ink: var(--blue); --tilt: 1deg; --i: 1; }
+.bars li:nth-child(6n + 3) { --rank-ink: var(--green); --tilt: -0.5deg; --i: 2; }
+.bars li:nth-child(6n + 4) { --rank-ink: var(--purple); --tilt: 1.5deg; --i: 3; }
+.bars li:nth-child(6n + 5) { --rank-ink: var(--ink-muted); --tilt: -1deg; --i: 4; }
+.bars li:nth-child(6n + 6) { --rank-ink: var(--award-red); --tilt: 0.5deg; --i: 5; }
+
+/* Peak hour: a taped card with the day as 24 bars, the busiest one in orange. */
+.note .big { font-size: clamp(48px, 17cqw, 66px); }
+.hours { display: flex; align-items: flex-end; gap: 3px; height: 130px; margin-top: 14px; }
+.hours span { flex: 1; height: max(var(--h), 2%); background: var(--ink); border-radius: 2px 2px 0 0; opacity: 0.85; }
+.hours .peak { background: var(--orange); opacity: 1; }
+.axis { display: flex; justify-content: space-between; font-size: 19px; color: var(--ink-muted); margin-top: 4px; }
+
+/* Streak: a page off a desk calendar. */
+.calendar {
+  position: relative; align-self: center; width: min(280px, 78cqw); text-align: center;
+  background: linear-gradient(var(--orange) 0 46px, var(--card) 46px);
+  padding: 70px 20px 24px; box-shadow: var(--lift-shadow); --tilt: -2deg;
+}
+.calendar .rings { position: absolute; top: 14px; left: 0; right: 0; display: flex; justify-content: space-around; }
+.calendar .rings span { width: 16px; height: 16px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 2px 0 rgba(43, 33, 24, 0.35); }
+.calendar .big { font-size: clamp(44px, 15cqw, 62px); }
+.calendar .hand { font-size: 24px; line-height: 1.1; margin-top: 10px; color: var(--ink-muted); }
+
+/* Words: a lined notebook card, an emoji note, and everyone's signature word. */
+.word-notes { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
+.note.lined { background: repeating-linear-gradient(transparent 0 31px, rgba(29, 78, 216, 0.16) 31px 32px), var(--card); padding-top: 14px; }
+.words { list-style: none; margin: 0; padding: 0; }
+.words li { font-size: 22px; font-weight: 800; line-height: 32px; }
+.words small { font: 700 20px/1 var(--font-hand); color: var(--ink-muted); }
+.note.sticky { --tilt: 3deg; --i: 1; max-width: 40cqw; margin-top: 22px; text-align: center; }
+.note.sticky::before { left: 20%; width: 60%; }
+.emoji { font-size: 40px; line-height: 1.15; }
+.signature { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.signature li { background: var(--card); padding: 6px 12px; box-shadow: var(--card-shadow); font-size: 15px; --i: 2; }
+.signature li:nth-child(odd) { --tilt: -1.5deg; }
+.signature li:nth-child(even) { --tilt: 1.5deg; }
+.signature b { font: 700 22px/1 var(--font-hand); color: var(--orange); }
+
+/* Greatest hits: quotes taped to the page. */
+.quotes { display: grid; gap: 26px; }
+.quotes figure { margin: 0; background: var(--card); padding: 22px 18px 14px; box-shadow: var(--card-shadow); }
+.quotes figure:nth-child(1) { --tilt: -1.5deg; }
+.quotes figure:nth-child(2) { --tilt: 1.2deg; --i: 1; }
+.quotes figure:nth-child(3) { --tilt: -0.6deg; --i: 2; }
+.quotes figure:nth-child(2)::before { left: 12%; transform: rotate(5deg); }
+blockquote { margin: 0 0 8px; font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; }
+.quotes.compact blockquote { font-size: 19px; }
+figcaption { font: 700 21px/1 var(--font-hand); color: var(--ink-muted); }
+
+/* Awards: a certified stamp on pink paper. */
+.slide[data-slide^="award-"] .stage { align-items: center; gap: 22px; text-align: center; }
+.stamp {
+  width: min(250px, 64cqw); aspect-ratio: 1; border-radius: 50%; padding: 26px;
+  background: var(--ink); color: var(--award-paper);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  outline: 3px dashed var(--ink); outline-offset: 8px; --tilt: -6deg;
+}
+.stamp span { font-size: 15px; letter-spacing: 0.14em; }
+.stamp h2 { margin: 0; font-size: clamp(28px, 10.3cqw, 40px); line-height: 0.95; letter-spacing: -0.02em; }
+.slide[data-slide^="award-"] .hand { font-size: 26px; font-weight: 600; margin-bottom: -16px; }
+.winner { font-size: clamp(40px, 16.4cqw, 64px); }
+.chip { background: var(--card); padding: 10px 18px; box-shadow: var(--card-shadow); font-size: 18px; --tilt: 1.5deg; --i: 2; }
+
+/* Outro */
+.slide[data-slide="outro"] .note { font-size: 18px; line-height: 1.45; --tilt: 1deg; }
+.slide[data-slide="outro"] .button, .slide[data-slide="outro"] .link { align-self: center; }
+
+/* ---------- Buttons and links ---------- */
+
+.button {
+  display: inline-block; align-self: flex-start; margin-top: 12px; padding: 12px 22px; border: 0; border-radius: 999px;
+  background: var(--ink); color: var(--paper); font: 800 16px/1.2 var(--font-body); text-decoration: none; cursor: pointer;
+  box-shadow: 0 3px 0 rgba(43, 33, 24, 0.3);
+}
+.button:hover { background: #3d3023; }
+.button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(43, 33, 24, 0.3); }
+.link { color: var(--ink); font-weight: 800; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+/* ---------- Landing and error pages ---------- */
+
+/* The home page isn't a story page: it grows with its content, and opens out into a spread on wide screens. */
+#app:has(.landing) { height: auto; width: min(1080px, 100vw - 32px); margin-block: 16px; cursor: default; }
+.slide.landing { position: relative; inset: auto; min-height: min(640px, 100dvh - 32px); padding: 40px 26px 32px; overflow: visible; cursor: default; }
+@media (max-width: 500px) {
+  #app:has(.landing) { width: 100vw; margin-block: 0; }
+  .slide.landing { min-height: 100dvh; }
+}
+.landing-grid { display: grid; gap: 14px; align-content: start; hyphens: manual; }
+.landing h1 { font-size: clamp(42px, 12.6cqw, 78px); font-weight: 800; line-height: 0.92; letter-spacing: -0.035em; margin-top: 6px; text-wrap: balance; }
+.landing h1 .hand { display: block; margin-top: 8px; font-size: 0.6em; line-height: 1; letter-spacing: 0; color: var(--orange); transform: rotate(-2deg); transform-origin: left; }
+.landing .lede { text-align: left; align-self: start; max-width: 30ch; }
+.beta { margin-left: 6px; padding: 2px 8px; border: 1.5px solid currentColor; border-radius: 999px; font-size: 10px; letter-spacing: 0.1em; vertical-align: 1px; }
+.install { display: grid; gap: 10px; margin-top: 14px; --tilt: -0.8deg; --i: 3; }
+.command { margin: 0; background: var(--ink); color: var(--paper); padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-size: 0.95rem; user-select: all; }
+.install .button { margin-top: 0; justify-self: start; }
+.demo-link { justify-self: start; font-size: 20px; margin-top: 6px; }
+.small { font-size: 0.85rem; color: var(--ink-muted); }
+.small a { color: inherit; }
+
+/* The decorative collage of demo pages. Sizes follow its own width (cqw), so it scales as one piece. */
+.collage { position: relative; height: 250px; container-type: inline-size; margin-block: 6px; }
+.collage .polaroid { position: absolute; left: 1%; top: 4%; padding: 10px 10px 8px; }
+.collage .polaroid .photo { width: 38cqw; }
+.collage .polaroid .photo p:last-child { font-size: 10cqw; } /* cqw of the photo here */
+.collage .polaroid .hand { font-size: max(18px, 5.4cqw); margin-top: 4px; }
+.collage .bars { position: absolute; right: 0; top: 2%; width: 54cqw; gap: 8px; }
+.collage .bars li { padding: 6px 10px; column-gap: 8px; row-gap: 4px; grid-template-columns: 18px minmax(0, 1fr) auto; }
+.collage .bars .rank { font-size: max(20px, 6cqw); }
+.collage .bars .name, .collage .bars .value { font-size: max(14px, 4.2cqw); min-width: 0; }
+.collage .bars .bar { height: 7px; }
+.collage .stamp { position: absolute; right: 7%; bottom: 6%; width: 31cqw; padding: 8px; gap: 2px; outline-offset: 5px; }
+.collage .stamp span { font-size: max(8px, 2.6cqw); }
+.stamp strong { font-size: max(15px, 5.2cqw); font-weight: 800; line-height: 0.95; text-align: center; }
+.collage .caption { position: absolute; left: 3%; bottom: 0; font-size: 20px; color: var(--ink-muted); transform: rotate(-2deg); }
+@media (min-width: 900px) {
+  .slide.landing { padding: 56px 64px; justify-content: center; }
+  .landing-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr); column-gap: 56px; }
+  .landing-grid > * { grid-column: 1; }
+  .landing-grid > .collage { grid-column: 2; grid-row: 1 / span 6; height: 470px; align-self: center; }
+  /* On the spread the pieces run corner to corner: polaroid top left, ranks middle right, stamp bottom left. */
+  .collage .polaroid { left: 4%; top: 0; }
+  .collage .polaroid .photo { width: 44cqw; }
+  .collage .bars { top: 40%; width: 50cqw; }
+  .collage .stamp { left: 12%; right: auto; bottom: 2%; width: 30cqw; }
+  .collage .caption { left: auto; right: 2%; bottom: 8%; }
+}
+
+/* Error pages ("This link is broken") */
+.notice { cursor: default; justify-content: center; gap: 14px; }
+.notice .lede { text-align: left; align-self: start; }
+
+/* ---------- Motion ---------- */
+
+/* The new page swings in from its spine, like turning a page; going back swings in from the other side. */
+@keyframes page-turn { from { opacity: 0; transform: perspective(1600px) rotateY(14deg); } }
+@keyframes page-turn-back { from { opacity: 0; transform: perspective(1600px) rotateY(-14deg); } }
+@keyframes settle { from { opacity: 0; transform: translateY(16px) rotate(0deg) scale(1.04); } }
+@keyframes grow { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

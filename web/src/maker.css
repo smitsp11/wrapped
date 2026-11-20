@@ -1,0 +1,47 @@
+/* The maker page (pick chats, review, send) in the same Scrapbook theme as the viewer. Tokens are in styles.css. */
+#maker { width: 100%; min-height: 100dvh; display: flex; justify-content: center; padding: 24px 16px; }
+.panel {
+  min-width: 0; overflow-wrap: anywhere; width: min(960px, 100%); display: flex; flex-direction: column; gap: 16px;
+  align-self: flex-start; padding: 28px 32px 36px; border-radius: 6px;
+  background: var(--grain), var(--paper);
+  box-shadow: 0 1px 0 rgba(43, 33, 24, 0.08), 0 22px 50px -18px rgba(43, 33, 24, 0.45);
+}
+@media (max-width: 500px) { #maker { padding: 0; } .panel { padding: 24px 18px 32px; border-radius: 0; box-shadow: none; } }
+.panel h2 { margin-top: 4px; }
+/* Section labels ("① Watch it") are handwritten, like the slides' asides. */
+.panel h3 { margin: 4px 0 8px; font: 700 28px/1 var(--font-hand); color: var(--orange); }
+.review [data-send] h3 { margin-top: 18px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.card {
+  min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 4px; padding: 16px;
+  background: var(--card); color: inherit; border: 2px solid transparent; border-radius: 2px; box-shadow: var(--card-shadow);
+  text-align: left; cursor: pointer; font: inherit; transform: rotate(var(--tilt, 0deg)); transition: transform 160ms ease;
+}
+.grid .card:nth-child(odd) { --tilt: -0.8deg; }
+.grid .card:nth-child(even) { --tilt: 0.8deg; }
+.card:hover { transform: rotate(0deg) translateY(-2px); }
+.card.on { border-color: var(--ink); --tilt: 0deg; }
+.card .title, .card .big { font-weight: 800; font-size: 1.2rem; }
+.card .members { color: var(--ink-muted); font-size: 0.9rem; }
+.card input { align-self: flex-end; width: 20px; height: 20px; }
+.mode { max-width: 360px; --tilt: -1deg; }
+.status { min-height: 1.5em; color: var(--ink-muted); }
+.wrap-page { display: grid; grid-template-columns: 340px 1fr; gap: 32px; }
+.wrap-page > * { min-width: 0; }
+.review { overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 6px; }
+.left-out { opacity: 0.5; }
+/* The preview phone sits in a white polaroid frame. */
+.phone { max-width: 100%; width: 320px; height: 600px; border: 10px solid var(--card); border-radius: 4px; background: var(--paper); box-shadow: var(--lift-shadow); }
+.review label { display: flex; gap: 8px; align-items: flex-start; }
+input[type='checkbox'] { accent-color: var(--orange); }
+.warn { color: var(--award-red); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cover { display: block; width: 100%; max-width: 320px; height: auto; margin: 8px 0 12px; box-shadow: var(--lift-shadow); transform: rotate(-1deg); }
+@media (max-width: 720px) { .wrap-page { grid-template-columns: 1fr; } .phone { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+
+.button:disabled { opacity: 0.45; cursor: not-allowed; }
+.card:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+.link { align-self: flex-start; background: none; border: 0; padding: 0; font: inherit; font-weight: 800; color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; cursor: pointer; }
+code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; border-radius: 4px; }
