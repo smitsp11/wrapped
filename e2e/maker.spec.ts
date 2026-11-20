@@ -31,13 +31,22 @@ async function mockApi(page: Page, mock: Mock = {}) {
     mock.built ?? ((body) => (body.kind === 'solo' ? ['me-2026'] : body.chatIds!.map((id) => groups.find((g) => g.id === id)!.wrapId)))
   buildCalls = 0
   buildBodies = []
-  await page.route('**/api/state', (r) => r.fulfill({ json: state }))
+  // Like the real app, a wrap counts as made once it's built, so later pages don't build it again.
+  const madeIds = new Set<string>()
+  const current = (): State => ({
+    ...state,
+    solo: { ...state.solo, made: state.solo.made || madeIds.has(state.solo.wrapId) },
+    groups: state.groups.map((g) => ({ ...g, made: g.made || madeIds.has(g.wrapId) })),
+  })
+  await page.route('**/api/state', (r) => r.fulfill({ json: current() }))
   await page.route('**/api/session', () => new Promise(() => undefined))
   await page.route('**/api/build', async (r) => {
     buildCalls++
     const body = r.request().postDataJSON()
     buildBodies.push(body)
-    await r.fulfill({ json: { ids: built(body), failed: [], undecodable: 0 } })
+    const ids = built(body)
+    for (const id of ids) madeIds.add(id)
+    await r.fulfill({ json: { ids, failed: [], undecodable: 0 } })
   })
   await page.route('**/api/wraps**', (r) => {
     const ids = (new URL(r.request().url()).searchParams.get('ids') ?? '').split(',').filter(Boolean)
