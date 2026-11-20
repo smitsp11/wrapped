@@ -3,32 +3,32 @@ import { emojis, tokenize, wordStats } from '../../src/stats/words'
 import { msg, react } from '../../fixtures/messages'
 
 it('tokenizes: lowercases, drops short words, stopwords, numbers and links', () => {
-  expect(tokenize('The PASTA is at https://x.com/abc 2026 tonight!')).toEqual(['pasta', 'tonight'])
+  expect(tokenize('The POKER is at https://x.com/abc 2026 tonight!')).toEqual(['poker', 'tonight'])
 })
 
 it('finds emoji graphemes', () => {
-  expect(emojis('bet 🍝 ok 👍🏽')).toEqual(['🍝', '👍🏽'])
+  expect(emojis('bet 🃏 ok 👍🏽')).toEqual(['🃏', '👍🏽'])
 })
 
 it('finds top words, top emoji, signature words and the longest message', () => {
   const at = (i: number) => `2026-01-01T10:${String(i).padStart(2, '0')}:00Z`
   const messages = [
-    ...Array.from({ length: 5 }, (_, i) => msg({ senderId: 'alex', sentAt: at(i), text: 'pasta tonight' })),
+    ...Array.from({ length: 5 }, (_, i) => msg({ senderId: 'alex', sentAt: at(i), text: 'poker night' })),
     ...Array.from({ length: 5 }, (_, i) => msg({ senderId: 'me', sentAt: at(10 + i), text: 'omw' })),
-    msg({ senderId: 'me', sentAt: at(20), text: 'pasta' }),
-    msg({ senderId: 'sam', sentAt: at(21), text: '🍝🍝' }),
+    msg({ senderId: 'me', sentAt: at(20), text: 'poker' }),
+    msg({ senderId: 'sam', sentAt: at(21), text: '🃏🃏' }),
     msg({ senderId: 'sam', sentAt: at(22), text: 'https://x.com/abc' }),
   ]
   const stats = wordStats(messages)
   expect(stats.topWords.slice(0, 3)).toEqual([
-    { word: 'pasta', count: 6 },
+    { word: 'poker', count: 6 },
+    { word: 'night', count: 5 },
     { word: 'omw', count: 5 },
-    { word: 'tonight', count: 5 },
   ])
-  expect(stats.topEmoji).toEqual([{ emoji: '🍝', count: 2 }])
-  expect(stats.signatureWordByPerson).toEqual({ alex: 'tonight', me: 'omw' })
-  // sam's link-only message is empty once links are removed, so alex's "pasta tonight" (13) is the longest
-  expect(stats.longestMessage).toEqual({ senderId: 'alex', length: 13 })
+  expect(stats.topEmoji).toEqual([{ emoji: '🃏', count: 2 }])
+  expect(stats.signatureWordByPerson).toEqual({ alex: 'night', me: 'omw' })
+  // sam's link-only message is empty once links are removed, so alex's "poker night" (11) is the longest
+  expect(stats.longestMessage).toEqual({ senderId: 'alex', length: 11 })
 })
 
 const at = (i: number) => new Date(Date.UTC(2026, 0, 1, 10, i)).toISOString()
@@ -58,7 +58,7 @@ it('drops www links', () => {
 
 it('gives no signature word to someone with nobody to compare with', () => {
   const others = Array.from({ length: 50 }, (_, i) => `word${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}x`)
-  const messages = [...many('alex', 'pasta', 60), ...others.map((w, i) => msg({ senderId: 'alex', sentAt: at(100 + i), text: w }))]
+  const messages = [...many('alex', 'poker', 60), ...others.map((w, i) => msg({ senderId: 'alex', sentAt: at(100 + i), text: w }))]
   expect(wordStats(messages).signatureWordByPerson).toEqual({})
 })
 
@@ -69,7 +69,7 @@ it('needs 5 uses for a signature word', () => {
 })
 
 it('gives no signature word when two people use a word equally', () => {
-  const messages = [...many('alex', 'pasta', 5), ...many('sam', 'pasta', 5, 10)]
+  const messages = [...many('alex', 'poker', 5), ...many('sam', 'poker', 5, 10)]
   expect(wordStats(messages).signatureWordByPerson).toEqual({})
 })
 
@@ -85,14 +85,14 @@ it('breaks signature-word ties alphabetically', () => {
 })
 
 it('skips reactions and messages without text', () => {
-  const target = msg({ senderId: 'alex', sentAt: at(0), text: 'pasta' })
+  const target = msg({ senderId: 'alex', sentAt: at(0), text: 'poker' })
   const stats = wordStats([
     target,
     react('sam', target, 'love', at(1)),
-    { ...react('sam', target, 'laugh', at(3)), text: 'pasta' },
+    { ...react('sam', target, 'laugh', at(3)), text: 'poker' },
     msg({ senderId: 'sam', sentAt: at(2), text: null }),
   ])
-  expect(stats.topWords).toEqual([{ word: 'pasta', count: 1 }])
+  expect(stats.topWords).toEqual([{ word: 'poker', count: 1 }])
   expect(stats.longestMessage).toEqual({ senderId: 'alex', length: 5 })
 })
 

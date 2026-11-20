@@ -1,4 +1,4 @@
-import { BETA_FEEDBACK, DONE_LINES } from '../../../src/app/copy'
+import { DONE } from '../../../src/app/copy'
 import { fitToLimit } from '../../../src/share/pack'
 import type { Wrap } from '../../../src/types'
 import { escapeHtml } from '../slides'
@@ -142,7 +142,7 @@ export async function renderWraps(app: HTMLElement, state: State, ids: string[])
         await api('/api/done', {})
         finished = true
         renderId++
-        app.innerHTML = `<section class="panel"><h2>${escapeHtml(DONE_LINES[0]!)}</h2><p>${escapeHtml(BETA_FEEDBACK)}</p><p>You can close this tab.</p></section>`
+        app.innerHTML = `<section class="panel"><h2>${escapeHtml(DONE)}</h2><p>You can close this tab.</p></section>`
       } catch (err) {
         showError(err)
       } finally {

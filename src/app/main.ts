@@ -51,7 +51,7 @@ function parseNow(text: string | undefined): Date {
 
 /** The closing line. clack only indents the first line, so the rest line up under it by hand. */
 function done(): void {
-  outro(copy.DONE_LINES.join('\n   '))
+  outro(copy.DONE)
 }
 
 /** Stops by throwing, so every `finally` (closing the database copy) runs before the program exits. */

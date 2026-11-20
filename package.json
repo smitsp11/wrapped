@@ -1,6 +1,6 @@
 {
   "name": "imessage-wrapped-app",
-  "version": "0.2.0-beta.1",
+  "version": "0.2.0-beta.2",
   "private": true,
   "license": "MIT",
   "author": "Smit Patel",
@@ -20,7 +20,7 @@
     "sqlite"
   ],
   "type": "module",
-  "description": "Spotify Wrapped for your iMessage group chats. Runs locally on your Mac.",
+  "description": "Your iMessage group chats, wrapped: story slides and awards, made on your Mac.",
   "engines": {
     "node": ">=22"
   },

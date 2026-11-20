@@ -36,6 +36,16 @@ const REMOVE_LAUGH = 3003
 const GROUP_STYLE = 43
 const DM_STYLE = 45
 
+/** Riley's late-night notes, one every ten days. Each starts with "heyyy", Riley's signature word. */
+const RILEY_NOTES = [
+  "heyyy who's hosting friday",
+  'heyyy the buy-in is snacks',
+  'heyyy bringing the chips',
+  'heyyy found a new deck',
+  'heyyy that bad beat tho',
+  'heyyy rematch next week?',
+]
+
 type AddOptions = { text?: string; body?: Buffer; attachment?: boolean; itemType?: number; reactTo?: string; reactType?: number }
 
 export function makeFakeDb(dir: string): FakeDb {
@@ -58,7 +68,7 @@ export function makeFakeDb(dir: string): FakeDb {
       for (const member of members) insertMember.run(id, member)
       return id
     }
-    const groupChatId = addChat(GROUP_STYLE, 'chat100000000000000001', 'Pasta Gang', Object.values(handleIds))
+    const groupChatId = addChat(GROUP_STYLE, 'chat100000000000000001', 'Poker Night', Object.values(handleIds))
     const dmChatId = addChat(DM_STYLE, FAKE_PEOPLE.alex.handle, '', [handleIds.alex])
 
     const insertMessage = db.prepare(`
@@ -100,23 +110,23 @@ export function makeFakeDb(dir: string): FakeDb {
       for (let d = 0; d < 60; d++) {
         // a system event (group rename), not a message
         if (d === 0) add(groupChatId, 'riley', at(d, '19:00'), { itemType: 2 })
-        const opener = add(groupChatId, 'alex', at(d, '20:00'), { text: 'pasta tonight?' })
+        const opener = add(groupChatId, 'alex', at(d, '20:00'), { text: 'poker tonight?' })
         add(groupChatId, 'sam', at(d, '20:03'), { reactTo: opener, reactType: LAUGH })
-        add(groupChatId, 'sam', at(d, '20:04'), { text: 'bet im in 🍝' })
+        add(groupChatId, 'sam', at(d, '20:04'), { text: 'bet im in 🃏' })
         if (d % 12 === 0) add(groupChatId, 'sam', at(d, '20:05'), { text: 'bet bet' })
         if (d === 10) add(groupChatId, 'sam', at(d, '20:06'), { text: '\uFFFC', attachment: true })
         const omw = add(groupChatId, 'me', at(d, '20:14'), { text: 'omw' })
         if (d === 7) for (const who of ['me', 'jordan', 'riley'] as const) add(groupChatId, who, at(d, '20:20'), { reactTo: opener, reactType: LAUGH })
         if (d === 20) for (const who of ['alex', 'sam', 'jordan'] as const) add(groupChatId, who, at(d, '20:30'), { reactTo: omw, reactType: LOVE })
-        if (d % 3 === 0) add(groupChatId, 'me', at(d, '20:40'), { text: 'where is everyone' })
+        if (d % 3 === 0) add(groupChatId, 'me', at(d, '20:40'), { text: 'who has the cards' })
         if (d === 30) {
           add(groupChatId, 'riley', at(d, '20:50'), { reactTo: opener, reactType: LAUGH })
           add(groupChatId, 'riley', at(d, '20:51'), { reactTo: opener, reactType: REMOVE_LAUGH })
         }
         if (d === 45) add(groupChatId, 'alex', at(d, '20:50'), { body: Buffer.from([1, 2, 3]) })
-        const sorry = add(groupChatId, 'jordan', at(d + 1, '01:14'), { body: makeAttributedBody('sorry sorry just woke up') })
+        const sorry = add(groupChatId, 'jordan', at(d + 1, '01:14'), { body: makeAttributedBody('sorry sorry, all in. rebuy?') })
         if (d % 2 === 0) add(groupChatId, 'alex', at(d + 1, '01:15'), { text: 'lol classic jordan' })
-        if (d % 10 === 0) add(groupChatId, 'riley', at(d + 1, '01:20'), { text: 'heyyy' })
+        if (d % 10 === 0) add(groupChatId, 'riley', at(d + 1, '01:20'), { text: RILEY_NOTES[d / 10]! })
         if (d % 2 === 0) add(groupChatId, 'me', at(d + 1, '01:30'), { reactTo: sorry, reactType: LOVE })
       }
       for (let i = 0; i < 10; i++) {

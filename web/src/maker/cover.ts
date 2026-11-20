@@ -25,16 +25,19 @@ export function coverLines(wrap: Wrap): CoverLines {
 }
 
 /**
- * Splits a title into two lines at the space nearest its middle ("Pasta Gang" → "Pasta", "Gang").
- * A title with no space stays on one line.
+ * Splits a title into two lines at the space nearest its middle ("Road Trip Crew" → "Road Trip", "Crew").
+ * It only splits where both lines keep a letter or number, so an emoji never sits on a line by itself
+ * ("Poker 🃏" stays on one line and is shrunk to fit). A title with no such space stays on one line.
  */
 export function splitTitle(title: string): string[] {
+  const hasWord = (text: string) => /[\p{L}\p{N}]/u.test(text)
   const middle = title.length / 2
   let best = -1
   for (let i = 0; i < title.length; i++) {
-    if (title[i] === ' ' && (best === -1 || Math.abs(i - middle) < Math.abs(best - middle))) best = i
+    if (title[i] !== ' ' || !hasWord(title.slice(0, i)) || !hasWord(title.slice(i + 1))) continue
+    if (best === -1 || Math.abs(i - middle) < Math.abs(best - middle)) best = i
   }
-  if (best === -1) return [title]
+  if (best === -1) return [title.trim()]
   return [title.slice(0, best).trim(), title.slice(best + 1).trim()].filter(Boolean)
 }
 

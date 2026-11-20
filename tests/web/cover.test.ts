@@ -6,7 +6,7 @@ describe('coverLines', () => {
   it('describes a group wrap', () => {
     const lines = coverLines(makeFakeWrap('group'))
     expect(lines.hand).toBe('our 2026, wrapped')
-    expect(lines.title).toBe('Pasta Gang')
+    expect(lines.title).toBe('Poker Night')
     expect(lines.count).toBe('302')
     expect(lines.countLabel).toBe('messages')
     expect(lines.awards).toEqual([
@@ -31,8 +31,11 @@ describe('coverLines', () => {
 
 describe('splitTitle', () => {
   it('splits at the space nearest the middle', () => {
-    expect(splitTitle('Pasta Gang')).toEqual(['Pasta', 'Gang'])
-    expect(splitTitle('The Pasta Gang Forever')).toEqual(['The Pasta', 'Gang Forever'])
+    expect(splitTitle('Friday Poker Night Crew')).toEqual(['Friday Poker', 'Night Crew'])
+  })
+  it('never leaves an emoji on a line by itself', () => {
+    expect(splitTitle('Poker 🃏')).toEqual(['Poker 🃏'])
+    expect(splitTitle('🃏 Poker Night 4 life 🃏')).toEqual(['🃏 Poker Night', '4 life 🃏'])
   })
   it('keeps a one-word title on one line', () => {
     expect(splitTitle('Roomies')).toEqual(['Roomies'])

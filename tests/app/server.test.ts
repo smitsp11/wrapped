@@ -13,7 +13,7 @@ const ORIGIN = 'http://127.0.0.1:4321'
 
 const fakeSession: Session = {
   period: { year: 2026, from: new Date(2026, 0, 1), to: new Date(2026, 9, 28), label: '2026 so far' },
-  groups: [{ id: 7, title: 'Pasta Gang', messages: 302, memberNames: ['Alex', 'Sam'] }],
+  groups: [{ id: 7, title: 'Poker Night', messages: 302, memberNames: ['Alex', 'Sam'] }],
   history: { kind: 'ok', since: new Date(2019, 0, 1) },
   buildGroup: () => ({ wrap: makeFakeWrap('group'), undecodable: 0 }),
   buildSolo: () => ({ wrap: makeFakeWrap('solo'), undecodable: 0 }),
@@ -51,9 +51,9 @@ describe('local server', () => {
   })
   it('builds picked wraps and serves them back', async () => {
     const built = await (await handle(api('/api/build', { method: 'POST', body: JSON.stringify({ kind: 'groups', chatIds: [7] }) }), deps)).json()
-    expect(built.ids).toEqual(['pasta-gang-7-2026'])
-    const got = await (await handle(api('/api/wraps?ids=pasta-gang-7-2026'), deps)).json()
-    expect(got.wraps[0].wrap.title).toBe('Pasta Gang')
+    expect(built.ids).toEqual(['poker-night-7-2026'])
+    const got = await (await handle(api('/api/wraps?ids=poker-night-7-2026'), deps)).json()
+    expect(got.wraps[0].wrap.title).toBe('Poker Night')
   })
   it('rejects a malformed build request', async () => {
     const res = await handle(api('/api/build', { method: 'POST', body: JSON.stringify({ kind: 'groups', chatIds: ['x'] }) }), deps)

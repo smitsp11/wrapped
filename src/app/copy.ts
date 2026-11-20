@@ -4,9 +4,8 @@ import type { HistoryCheck } from './history'
 export const INTRO = ' iMessage Wrapped (beta) '
 /** The small tag next to the title on the landing page. */
 export const BETA_TAG = 'Beta'
-export const BETA_FEEDBACK = "This is a beta. Tell Smit what felt off or what you'd change."
-/** The last thing the terminal says, and the Done panel in the browser. */
-export const DONE_LINES = ['All done ✓', BETA_FEEDBACK]
+/** The last thing the terminal says, and the Done panel's heading in the browser. */
+export const DONE = 'All done ✓'
 
 export const WELCOME_TITLE = 'iMessage Wrapped'
 export const WELCOME_LINES = [

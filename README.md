@@ -1,6 +1,6 @@
 # iMessage Wrapped (beta)
 
-Spotify Wrapped for your iMessage group chats. It runs on your Mac.
+Your iMessage group chats, wrapped: story slides and awards, made on your Mac.
 
 ![A group chat's wrap: story slides with awards and the chat's greatest hits](docs/images/wrap.png)
 

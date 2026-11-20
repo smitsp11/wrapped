@@ -71,7 +71,7 @@ describe('shortNames', () => {
 })
 
 describe('chatTitle', () => {
-  it('uses the chat name when there is one', () => expect(chatTitle(chat({ name: 'Pasta Gang' }), nameFor)).toBe('Pasta Gang'))
+  it('uses the chat name when there is one', () => expect(chatTitle(chat({ name: 'Poker Night' }), nameFor)).toBe('Poker Night'))
   it('names unnamed chats after members by first name, like Messages', () => {
     expect(chatTitle(chat({ memberIds: ['+14165550101', '+14165550102', 'j@example.com'] }), nameFor)).toBe('Alex, Sam, Jordan')
   })

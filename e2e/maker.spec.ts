@@ -95,7 +95,7 @@ test('your wraps: preview, untick a quote, next, done', async ({ page }) => {
   await expect(page.getByText('2 of 2')).toBeVisible()
   await page.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByText('All done ✓')).toBeVisible()
-  await expect(page.getByText("This is a beta. Tell Smit what felt off or what you'd change.")).toBeVisible()
+  await expect(page.getByText(/Tell Smit/)).toHaveCount(0)
 })
 
 test('your wraps: a ticked box keeps keyboard focus', async ({ page }) => {

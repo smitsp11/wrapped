@@ -12,7 +12,7 @@ it('decodes text longer than 127 bytes (two-byte length)', () => {
 })
 
 it('decodes emoji', () => {
-  expect(decodeAttributedBody(makeAttributedBody('bet 🍝'))).toBe('bet 🍝')
+  expect(decodeAttributedBody(makeAttributedBody('bet 🃏'))).toBe('bet 🃏')
 })
 
 it('returns null for null or garbage', () => {

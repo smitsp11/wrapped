@@ -26,7 +26,7 @@ export function makeFakeWrap(mode: 'group' | 'solo' = 'group'): Wrap {
       const chats = db.listChats().map((c) => ({ ...c, name: c.name || fakeName(c.memberIds[0] ?? '') }))
       const chatIds = mode === 'group' ? [fake.groupChatId] : undefined
       const { messages } = normalizeRows(db.messageRows({ chatIds, from: FROM, to: TO }))
-      const title = mode === 'group' ? 'Pasta Gang' : 'Your 2026'
+      const title = mode === 'group' ? 'Poker Night' : 'Your 2026'
       return buildWrap(messages, { mode, title, from: FROM, to: TO, nameFor: fakeName, chats })
     } finally {
       db.close()

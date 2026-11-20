@@ -11,7 +11,7 @@ import { makeFakeWrap } from '../../fixtures/fakeWrap'
 
 const nameOf = (wrap: Wrap, id: string) => wrap.people[id]
 
-describe('the fake "Pasta Gang" chat', () => {
+describe('the fake "Poker Night" chat', () => {
   let wrap: Wrap
   beforeAll(() => {
     wrap = makeFakeWrap('group')
@@ -39,14 +39,15 @@ describe('the fake "Pasta Gang" chat', () => {
   it('finds the streak, the greatest hits and the signature words', () => {
     expect(wrap.timing.longestStreakDays).toBe(61)
     expect(wrap.greatestHits.map((h) => [nameOf(wrap, h.senderId), h.text, h.reactions])).toEqual([
-      ['Alex Chen', 'pasta tonight?', 4],
+      ['Alex Chen', 'poker tonight?', 4],
       ['You', 'omw', 3],
     ])
     expect(Object.fromEntries(Object.entries(wrap.words.signatureWordByPerson).map(([id, w]) => [nameOf(wrap, id), w]))).toEqual({
-      'Alex Chen': 'pasta', You: 'omw', 'Sam Rivera': 'bet', 'Jordan Lee': 'sorry', 'Riley Park': 'heyyy',
+      'Alex Chen': 'poker', You: 'omw', 'Sam Rivera': 'bet', 'Jordan Lee': 'sorry', 'Riley Park': 'heyyy',
     })
     expect(wrap.words.topWords.slice(0, 2)).toEqual([{ word: 'sorry', count: 120 }, { word: 'bet', count: 70 }])
-    expect(wrap.words.topEmoji[0]).toEqual({ emoji: '🍝', count: 60 })
+    expect(wrap.words.topWords.map((w) => w.word)).toEqual(['sorry', 'bet', 'omw', 'poker', 'rebuy', 'tonight', 'classic', 'jordan', 'lol', 'cards'])
+    expect(wrap.words.topEmoji[0]).toEqual({ emoji: '🃏', count: 60 })
   })
 
   it('reports the one message it could not decode', () => {
@@ -67,7 +68,7 @@ describe('the fake "Pasta Gang" chat', () => {
   it('builds a solo wrap with top chats', () => {
     const solo = makeFakeWrap('solo')
     expect(solo.volume.total).toBe(312)
-    expect(solo.topChats).toEqual([{ name: 'Pasta Gang', messages: 302 }, { name: 'Alex Chen', messages: 10 }])
+    expect(solo.topChats).toEqual([{ name: 'Poker Night', messages: 302 }, { name: 'Alex Chen', messages: 10 }])
   })
 
   it('never contains a raw handle, in group or solo', () => {
@@ -80,8 +81,8 @@ describe('the fake "Pasta Gang" chat', () => {
   it('uses only your own words in a solo wrap', () => {
     const solo = makeFakeWrap('solo')
     const words = solo.words.topWords.map((w) => w.word)
-    for (const theirs of ['sorry', 'bet', 'pasta']) expect(words).not.toContain(theirs)
+    for (const theirs of ['sorry', 'bet', 'poker']) expect(words).not.toContain(theirs)
     expect(words).toContain('omw')
-    expect(solo.words.topEmoji.map((e) => e.emoji)).not.toContain('🍝')
+    expect(solo.words.topEmoji.map((e) => e.emoji)).not.toContain('🃏')
   })
 })

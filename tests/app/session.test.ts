@@ -26,7 +26,7 @@ afterAll(() => {
 
 describe('session', () => {
   it('ranks the fake group chat and checks history', () => {
-    expect(session.groups.map((g) => g.title)).toEqual(['Pasta Gang'])
+    expect(session.groups.map((g) => g.title)).toEqual(['Poker Night'])
     expect(session.history.kind).toBe('ok') // the fake chat starts Mon 2026-01-05, within 14 days of Jan 1
   })
   it('flags history that stops long before today as stale', () => {
@@ -39,13 +39,13 @@ describe('session', () => {
   })
   it('builds a group wrap matching the answer key', () => {
     const { wrap } = session.buildGroup(fake.groupChatId)
-    expect(wrap.title).toBe('Pasta Gang')
+    expect(wrap.title).toBe('Poker Night')
     expect(wrap.volume.total).toBe(302)
   })
   it('builds and saves picked wraps, reporting chats that fail', () => {
     const appDir = path.join(dir, 'app')
     const result = buildSelection(session, { kind: 'groups', chatIds: [fake.groupChatId, 123456] }, appDir)
-    expect(result.ids).toEqual([`pasta-gang-${fake.groupChatId}-2026`])
+    expect(result.ids).toEqual([`poker-night-${fake.groupChatId}-2026`])
     expect(result.failed).toHaveLength(1)
     expect(listWraps(appDir).map((w) => w.id)).toEqual(result.ids)
   })

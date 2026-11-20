@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { looksLikeContactInfo } from '../../src/cliHelpers'
-import { BETA_FEEDBACK, BETA_TAG, DONE_LINES, INTRO, MISSING_DB, WELCOME_LINES, accessSteps, historyLine, noAccess } from '../../src/app/copy'
+import { BETA_TAG, DONE, INTRO, MISSING_DB, WELCOME_LINES, accessSteps, historyLine, noAccess } from '../../src/app/copy'
 
 describe('copy', () => {
   it('says how far back history goes', () => {
@@ -43,9 +42,7 @@ describe('copy', () => {
     expect(INTRO.trim()).toBe('iMessage Wrapped (beta)')
     expect(BETA_TAG).toBe('Beta')
   })
-  it('asks for beta feedback in the final message, with no contact details', () => {
-    expect(BETA_FEEDBACK).toBe("This is a beta. Tell Smit what felt off or what you'd change.")
-    expect(DONE_LINES).toEqual(['All done ✓', BETA_FEEDBACK])
-    expect(looksLikeContactInfo(DONE_LINES.join('\n'))).toBe(false)
+  it('ends with a plain done line and no feedback ask', () => {
+    expect(DONE).toBe('All done ✓')
   })
 })

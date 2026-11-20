@@ -29,7 +29,7 @@ describe('MessagesDb', () => {
   it('lists chats, busiest first', () => {
     const chats = db.listChats()
     expect(chats.map((c) => [c.id, c.name, c.isGroup, c.messageCount])).toEqual([
-      [fake.groupChatId, 'Pasta Gang', true, 402], // includes the rename event
+      [fake.groupChatId, 'Poker Night', true, 402], // includes the rename event
       [fake.dmChatId, '', false, 10],
     ])
     expect(chats[0]?.memberIds).toHaveLength(4)
@@ -39,7 +39,7 @@ describe('MessagesDb', () => {
   it('returns rows for one chat in a period, oldest first', () => {
     const rows = db.messageRows({ chatIds: [fake.groupChatId], ...YEAR })
     expect(rows).toHaveLength(401)
-    expect(rows[0]).toMatchObject({ text: 'pasta tonight?', handle: FAKE_PEOPLE.alex.handle, isFromMe: 0 })
+    expect(rows[0]).toMatchObject({ text: 'poker tonight?', handle: FAKE_PEOPLE.alex.handle, isFromMe: 0 })
     expect(rows.every((r, i) => i === 0 || r.dateMs >= rows[i - 1]!.dateMs)).toBe(true)
   })
 

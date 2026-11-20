@@ -37,10 +37,10 @@ function stopPlaying(): void {
 /** The scrapbook pieces beside the landing copy. Made-up numbers from the demo chat, and decorative only. */
 const LANDING_COLLAGE = `
   <div class="collage" aria-hidden="true">
-    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">302</p><p>messages</p></div><p class="hand">Pasta Gang</p></div>
+    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">302</p><p>messages</p></div><p class="hand">Poker Night</p></div>
     <ol class="bars">
       <li><span class="rank">1</span><span class="name">Alex</span><span class="bar" style="--w:100%"></span><span class="value">29.8%</span></li>
-      <li><span class="rank">2</span><span class="name">Sam</span><span class="bar" style="--w:74%"></span><span class="value">21.9%</span></li>
+      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:89%"></span><span class="value">26.5%</span></li>
     </ol>
     <div class="stamp"><span>CERTIFIED</span><strong>Main Character</strong><span>2026</span></div>
     <p class="hand caption">(a made-up demo chat)</p>
@@ -52,8 +52,8 @@ function showLanding(): void {
   app.innerHTML = `
     <section class="slide landing">
       <div class="landing-grid">
-        <p class="kicker">iMessage Wrapped <span class="beta" data-beta-tag>${BETA_TAG}</span></p>
-        <h1>Spotify Wrapped, <span class="hand">for your group chats</span></h1>
+        <p class="kicker"><span class="beta" data-beta-tag>${BETA_TAG}</span></p>
+        <h1>iMessage Wrapped <span class="hand">for your group chats</span></h1>
         <p class="lede">Made on your Mac. Nothing is uploaded. Watch it on any phone.</p>
         ${LANDING_COLLAGE}
         <div class="note taped install">

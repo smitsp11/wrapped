@@ -12,9 +12,9 @@ afterEach(() => fs.rmSync(appDir, { recursive: true, force: true }))
 describe('store', () => {
   it('saves and loads a wrap by id, readable only by you', () => {
     const wrap = makeFakeWrap('group')
-    saveWrap(appDir, 'pasta-gang-1-2026', wrap)
-    expect(loadWrap(appDir, 'pasta-gang-1-2026')).toEqual(wrap)
-    const mode = fs.statSync(path.join(appDir, 'wraps', 'pasta-gang-1-2026.json')).mode & 0o777
+    saveWrap(appDir, 'poker-night-1-2026', wrap)
+    expect(loadWrap(appDir, 'poker-night-1-2026')).toEqual(wrap)
+    const mode = fs.statSync(path.join(appDir, 'wraps', 'poker-night-1-2026.json')).mode & 0o777
     expect(mode).toBe(0o600)
   })
   it('tightens a looser existing file and folder, and leaves no temp files', () => {

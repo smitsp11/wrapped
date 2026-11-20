@@ -1,7 +1,7 @@
 {
   "version": 1,
   "mode": "group",
-  "title": "Pasta Gang",
+  "title": "Poker Night",
   "period": {
     "from": "2026-01-01",
     "to": "2027-01-01"
@@ -146,15 +146,15 @@
         "count": 60
       },
       {
-        "word": "pasta",
+        "word": "poker",
+        "count": 60
+      },
+      {
+        "word": "rebuy",
         "count": 60
       },
       {
         "word": "tonight",
-        "count": 60
-      },
-      {
-        "word": "woke",
         "count": 60
       },
       {
@@ -170,18 +170,18 @@
         "count": 30
       },
       {
-        "word": "everyone",
+        "word": "cards",
         "count": 20
       }
     ],
     "topEmoji": [
       {
-        "emoji": "🍝",
+        "emoji": "🃏",
         "count": 60
       }
     ],
     "signatureWordByPerson": {
-      "p1": "pasta",
+      "p1": "poker",
       "p2": "bet",
       "me": "omw",
       "p3": "sorry",
@@ -189,13 +189,13 @@
     },
     "longestMessage": {
       "senderId": "p3",
-      "length": 24
+      "length": 27
     }
   },
   "greatestHits": [
     {
       "senderId": "p1",
-      "text": "pasta tonight?",
+      "text": "poker tonight?",
       "sentAt": "2026-01-12T20:00:00.000Z",
       "reactions": 4,
       "laughs": 4
