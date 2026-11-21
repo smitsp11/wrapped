@@ -78,16 +78,23 @@ export function mountPost(slot: HTMLElement, state: State, isCurrent: () => bool
     const blob = drawn.then(
       () => new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("Couldn't make the image."))), 'image/png')),
     )
+    const failed = () => say("Couldn't copy the image. Use Save image instead.")
+    // Some browsers never answer a clipboard write (no reply, no error); after a few seconds, say so.
+    const stuck = window.setTimeout(failed, COPY_TIMEOUT_MS)
     try {
       void navigator.clipboard
         .write([new ClipboardItem({ 'image/png': blob })])
-        .then(() => say('Card copied ✓ Paste it into your story or post.'))
-        .catch(() => say("Couldn't copy the image. Use Save image instead."))
+        .then(() => say('Card copied ✓ Paste it into your story or post.'), failed)
+        .finally(() => window.clearTimeout(stuck))
     } catch {
-      say("Couldn't copy the image. Use Save image instead.")
+      window.clearTimeout(stuck)
+      failed()
     }
   }
 }
+
+/** How long to wait for the clipboard before pointing at Save image instead. */
+const COPY_TIMEOUT_MS = 3000
 
 /** The card, big, over the dimmed page. A click anywhere, or Escape, closes it and puts focus back on the thumbnail. */
 function openLarger(image: HTMLImageElement, opener: HTMLElement): void {
