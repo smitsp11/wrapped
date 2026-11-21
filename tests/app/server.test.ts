@@ -3,6 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
+import { counter } from '../../src/app/count'
+import { EmptyPeriodError } from '../../src/errors'
 import { handle, type ServerDeps } from '../../src/app/server'
 import type { Session } from '../../src/app/session'
 import { saveWrap } from '../../src/app/store'
@@ -18,6 +20,7 @@ const fakeSession: Session = {
   buildGroup: () => ({ wrap: makeFakeWrap('group'), undecodable: 0 }),
   buildSolo: () => ({ wrap: makeFakeWrap('solo'), undecodable: 0 }),
   senderName: () => 'Taylor',
+  attachmentFile: () => null,
   close: () => undefined,
 }
 
@@ -37,6 +40,8 @@ beforeEach(() => {
     presence: { pageOpened: vi.fn(), pageClosed: vi.fn(), stop: vi.fn() },
     onClose: vi.fn(),
     update: () => null,
+    media: { list: () => [], serve: async () => new Response(null, { status: 404 }), close: () => undefined },
+    count: vi.fn(),
   }
 })
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
@@ -146,5 +151,55 @@ describe('local server', () => {
   it('builds the solo wrap', async () => {
     const built = await (await handle(api('/api/build', { method: 'POST', body: JSON.stringify({ kind: 'solo' }) }), deps)).json()
     expect(built.ids).toEqual(['me-2026'])
+  })
+})
+
+describe('anonymous tallies from the local server', () => {
+  const build = (selection: unknown, d = deps) => handle(api('/api/build', { method: 'POST', body: JSON.stringify(selection) }), d)
+  const send = (link: string, d = deps) => handle(api('/api/open-messages', { method: 'POST', body: JSON.stringify({ link }) }), d)
+
+  it('counts each wrap made, group or solo', async () => {
+    await build({ kind: 'groups', chatIds: [7] })
+    await build({ kind: 'solo' })
+    expect(vi.mocked(deps.count).mock.calls).toEqual([['wrap_made_group'], ['wrap_made_solo']])
+  })
+  it("doesn't count a wrap that wasn't made, or a malformed request", async () => {
+    const session = { ...fakeSession, buildGroup: () => { throw new EmptyPeriodError('Poker Night') } }
+    expect((await (await build({ kind: 'groups', chatIds: [7] }, { ...deps, session })).json()).ids).toEqual([])
+    await build({ kind: 'groups', chatIds: ['x'] })
+    expect(deps.count).not.toHaveBeenCalled()
+  })
+  it('counts a send once Messages is open, and not a refused link', async () => {
+    await send('https://evil.example/')
+    expect(deps.count).not.toHaveBeenCalled()
+    await send('https://wrapped.smitpatel.xyz/#abc')
+    expect(vi.mocked(deps.count).mock.calls).toEqual([['send']])
+  })
+  it('sends only the event name to the site, never the link or a name', async () => {
+    const post = vi.fn(async () => new Response(null, { status: 204 }))
+    const d = { ...deps, site: 'https://wrapped.test', count: counter('https://wrapped.test', {}, post) }
+    await build({ kind: 'groups', chatIds: [7] }, d)
+    await send('https://wrapped.test/#abc', d)
+    const sent = post.mock.calls as unknown as [string, RequestInit][]
+    expect(sent.map(([url, init]) => [url, init.body])).toEqual([
+      ['https://wrapped.test/api/c', '{"event":"wrap_made_group"}'],
+      ['https://wrapped.test/api/c', '{"event":"send"}'],
+    ])
+  })
+  it('answers as usual when counting fails or never answers', async () => {
+    for (const post of [vi.fn(async () => Promise.reject(new Error('offline'))), vi.fn(() => new Promise<Response>(() => undefined))]) {
+      const d = { ...deps, count: counter('https://wrapped.test', {}, post) }
+      expect((await build({ kind: 'solo' }, d)).status).toBe(200)
+      expect((await send('https://wrapped.smitpatel.xyz/#abc', d)).status).toBe(204)
+    }
+  })
+  it('stays quiet with WRAPPED_NO_COUNT=1 or WRAPPED_NO_UPDATE_CHECK=1', async () => {
+    for (const env of [{ WRAPPED_NO_COUNT: '1' }, { WRAPPED_NO_UPDATE_CHECK: '1' }]) {
+      const post = vi.fn(async () => new Response(null, { status: 204 }))
+      const d = { ...deps, count: counter('https://wrapped.test', env, post) }
+      await build({ kind: 'solo' }, d)
+      await send('https://wrapped.smitpatel.xyz/#abc', d)
+      expect(post).not.toHaveBeenCalled()
+    }
   })
 })

@@ -7,13 +7,18 @@ export const INTRO = ' iMessage Wrapped (beta) '
 /** The small tag next to the title on the landing page. */
 export const BETA_TAG = 'Beta'
 
-/** First run only. `addedToPath`: the installer's line is in a shell startup file (see shellStartup.ts). Never claim it otherwise. */
-export function welcomeLines(addedToPath: boolean): string[] {
+/**
+ * First run only. `addedToPath`: the installer's line is in a shell startup file (see shellStartup.ts). Never claim it otherwise.
+ * `counting`: the anonymous tallies are on (count.ts); the note is left out when they're already off.
+ */
+export function welcomeLines(addedToPath: boolean, counting = true): string[] {
   return [
     'Makes your wraps from Messages on this Mac.',
+    ...(counting ? [COUNT_NOTICE] : []),
     ...(addedToPath ? ['Added  wrapped  to your shell\'s startup file. To undo, delete the line marked "added by iMessage Wrapped".'] : []),
   ]
 }
+export const COUNT_NOTICE = 'Counts launches, wraps made and wraps sent as anonymous daily tallies. WRAPPED_NO_COUNT=1 turns it off.'
 
 /** How to start it again. Right after installing, this shell doesn't know  wrapped  yet (see onPath), but a new window does. */
 function typeWrapped(onPath: boolean): string {

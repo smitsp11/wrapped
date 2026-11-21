@@ -80,6 +80,9 @@ function checkConversation(value: unknown): void {
   })
   const hit = convo.hit
   check(Number.isInteger(hit) && (hit as number) >= 0 && (hit as number) < (convo.messages as unknown[]).length)
+  // Solo wraps: the chat's name, and names for senders who aren't among the wrap's people.
+  check(optional(isString)(convo.title))
+  if (convo.people !== undefined) checkPersonRecord(convo.people, isString)
 }
 
 /** Checks every field the slides read. Throws BrokenLinkError (or NewerVersionError) instead of returning bad data. */
@@ -154,6 +157,32 @@ export function parseWrap(value: unknown): Wrap {
     label: isString,
   })
   checkList(value.topChats, { name: isString, messages: isFiniteNumber })
+  // Optional: links made before texting styles existed have none.
+  if (value.texting !== undefined) {
+    check(isRecord(value.texting))
+    const texting = value.texting as Record<string, unknown>
+    checkPersonRecord(texting.medianWordsByPerson)
+    checkPersonRecord(texting.textsPerTurnByPerson)
+  }
+  checkNewerStats(value)
 
   return value as Wrap
+}
+
+/** An object whose listed fields pass their checks (other fields are left alone, like checkList does). */
+function checkFields(value: unknown, fields: Record<string, (v: unknown) => boolean>): void {
+  check(isRecord(value))
+  for (const [name, ok] of Object.entries(fields)) check(ok((value as Record<string, unknown>)[name]))
+}
+
+/** Stats added after the first links went out: each is optional, so older links still open, but checked when present. */
+function checkNewerStats(value: Record<string, unknown>): void {
+  const busiestDay = (value.timing as Record<string, unknown>).busiestDay
+  if (busiestDay !== undefined) checkFields(busiestDay, { date: matches(DATE), messages: isFiniteNumber })
+  if (value.topPersonByMonth !== undefined) {
+    const months = value.topPersonByMonth
+    check(Array.isArray(months) && months.length === 12 && months.every((id) => id === null || isPersonId(id)))
+  }
+  if (value.personStreak !== undefined) checkFields(value.personStreak, { personId: isPersonId, days: isFiniteNumber, from: matches(DATE) })
+  if (value.vsLastYear !== undefined) checkFields(value.vsLastYear, { year: Number.isInteger, percent: isFiniteNumber })
 }

@@ -89,6 +89,7 @@ p { margin: 0; }
 .slide[data-slide^="award-"] .hand-title { color: var(--award-red); }
 /* A handwritten aside under a heading, e.g. "(it's not close)". */
 .aside { font: 700 26px/1 var(--font-hand); color: var(--orange); transform: rotate(-2deg); transform-origin: left; margin-top: 2px; }
+.aside .quip { white-space: nowrap; }
 .hand { font-family: var(--font-hand); font-weight: 700; }
 .lede { font-size: 19px; line-height: 1.4; text-align: center; max-width: 290px; align-self: center; }
 .big { font-weight: 800; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
@@ -127,6 +128,8 @@ p { margin: 0; }
 .polaroid .big { font-size: min(108px, 160cqw / var(--len, 3)); line-height: 0.9; letter-spacing: -0.04em; }
 .polaroid .photo p:last-child { font-size: 18px; }
 .polaroid .hand { font-size: 28px; text-align: center; margin-top: 12px; }
+/* The intro's one line under the polaroid, "That's about 410 texts a day", handwritten like a note on the page. */
+.per-day { align-self: center; max-width: 92cqw; margin-top: 10px; text-align: center; text-wrap: balance; font: 700 clamp(28px, 9cqw, 36px)/1.05 var(--font-hand); color: var(--ink); transform: rotate(-2deg); }
 
 /* Ranked lists: tilted white cards with a coloured rank, name, bar and value. */
 .bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
@@ -157,6 +160,38 @@ p { margin: 0; }
 .hours .peak { background: var(--orange); opacity: 1; }
 .axis { display: flex; justify-content: space-between; font-size: 19px; color: var(--ink-muted); margin-top: 4px; }
 
+/* Peak month: the Peak hour bars, one per month (--n of them), each month's initial under its bar. */
+.months { gap: 6px; height: 110px; }
+.months span { border-radius: 3px 3px 0 0; }
+.months-axis { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; text-align: center; }
+/* The busiest day: a page torn off a desk calendar, beside what happened that day. */
+.busiest { display: flex; align-items: center; gap: 16px; padding-inline: 4px; }
+.busiest p:last-child { font-size: 22px; font-weight: 800; line-height: 1.2; }
+.busiest small { display: block; font-size: 15px; font-weight: 600; color: var(--ink-muted); }
+.busiest .hand { display: block; font-size: 25px; line-height: 1; color: var(--orange); margin-bottom: 2px; }
+.day-page {
+  flex: none; width: 68px; text-align: center; background: var(--card); box-shadow: var(--lift-shadow);
+  transform: rotate(var(--tilt)); --tilt: 4deg; animation: settle 560ms cubic-bezier(0.2, 0.9, 0.3, 1.25) 280ms both;
+}
+.day-page span { display: block; padding: 4px 0 3px; background: var(--orange); color: var(--paper); font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+.day-page b { display: block; padding: 2px 0 6px; font-size: 34px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+/* Your person, month by month: a card per month, its top edge in that person's ink, so a run of months reads as one. */
+.month-people { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
+.month-people li {
+  display: grid; gap: 3px; padding: 7px 10px 9px; background: var(--card); box-shadow: var(--card-shadow);
+  border-top: 6px solid var(--who); transform: rotate(var(--tilt));
+  animation: settle 560ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both; animation-delay: calc(140ms + var(--i, 0) * 45ms);
+}
+.month-people li:nth-child(odd) { --tilt: -1.5deg; }
+.month-people li:nth-child(even) { --tilt: 1.2deg; }
+.month-people li:nth-child(3n) { --tilt: -0.6deg; }
+.month-people .month { font: 700 20px/1 var(--font-hand); color: var(--ink-muted); }
+/* A name stays on one line; one too long for the card ends in an ellipsis. */
+.month-people .name { font-size: min(19px, 5.6cqw); font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.month-people .none { --who: var(--ink-faint); background: transparent; box-shadow: none; outline: 1.5px dashed var(--ink-faint); outline-offset: -1.5px; }
+.month-people .none .who { color: var(--ink-muted); font-weight: 500; }
+
 /* Streak: a page off a desk calendar. */
 .calendar {
   position: relative; align-self: center; width: min(280px, 78cqw); text-align: center;
@@ -167,6 +202,10 @@ p { margin: 0; }
 .calendar .rings span { width: 16px; height: 16px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 2px 0 rgba(43, 33, 24, 0.35); }
 .calendar .big { font-size: clamp(44px, 15cqw, 62px); }
 .calendar .hand { font-size: 24px; line-height: 1.1; margin-top: 10px; color: var(--ink-muted); }
+.calendar .hand b { color: var(--orange); font-size: 1.2em; }
+.calendar .dates { margin-top: 10px; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; color: var(--ink-muted); }
+/* Under the calendar, only when the streak covers the whole period: "and you never missed a day of texting". */
+.never-missed { align-self: center; max-width: 86cqw; text-align: center; text-wrap: balance; font: 700 27px/1.05 var(--font-hand); color: var(--orange); transform: rotate(-3deg); animation: fade-in 400ms ease-out 520ms both; }
 
 /* Words: a lined notebook card, an emoji note, and everyone's signature word. */
 .word-notes { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
@@ -196,7 +235,7 @@ p { margin: 0; }
 .signature b { font: 700 22px/1 var(--font-hand); color: var(--orange); }
 
 /* Greatest hits: quotes taped to the page. */
-.quotes { display: grid; gap: 26px; }
+.quotes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 26px; }
 .quotes figure { margin: 0; background: var(--card); padding: 22px 18px 14px; box-shadow: var(--card-shadow); }
 .quotes figure:nth-child(1) { --tilt: -1.5deg; }
 .quotes figure:nth-child(2) { --tilt: 1.2deg; --i: 1; }
@@ -207,6 +246,60 @@ blockquote { margin: 0 0 8px; font-size: 24px; font-weight: 800; line-height: 1.
 /* Who said it and the reactions, then when it was sent: beside them if there's room, else on the next line. */
 figcaption { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; font: 700 21px/1 var(--font-hand); color: var(--ink-muted); }
 figcaption time { font-size: 18px; white-space: nowrap; }
+/* The name and the reactions stay on one line: a name too long for it is cut short with "…", never the count. */
+figcaption .by { display: flex; min-width: 0; }
+figcaption .by-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+figcaption .by-count { flex: none; white-space: pre; }
+
+/*
+ * Texting styles: a white card per person. On the left a pink sticky with a tiny picture of how they text (stacked mini
+ * bubbles for bursts, one tall bubble for paragraphs), then their name, their style in its colour, and its one line.
+ */
+.styles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.styles li {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr); column-gap: 12px; align-items: center;
+  background: var(--card); padding: 6px 14px 6px 10px; box-shadow: var(--card-shadow); line-height: 1.1;
+  --style-ink: var(--ink-muted);
+  transform: rotate(var(--tilt, 0deg));
+  animation: settle 560ms cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  animation-delay: calc(140ms + var(--i, 0) * 70ms);
+}
+.styles li:nth-child(odd) { --tilt: -0.8deg; }
+.styles li:nth-child(even) { --tilt: 0.7deg; }
+.styles li[data-style="paragraph-texter"] { --style-ink: var(--blue); }
+.styles li[data-style="spray-n-pray"] { --style-ink: var(--orange); }
+.styles li[data-style="nonchalant"] { --style-ink: var(--award-red); }
+.styles li[data-style="one-and-done"] { --style-ink: var(--green); }
+/* The sticky is 46×40: up to four one-line bubbles (6px, 2px apart) or one three-line paragraph fit inside. */
+.mini-texts {
+  grid-row: 1 / 4; width: 46px; min-height: 40px; padding: 5px 6px;
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 2px;
+  background: var(--award-paper); border-radius: 3px; transform: rotate(-3deg);
+}
+.mini-texts i {
+  display: block; width: var(--w); height: calc(2px + var(--lines) * 4px); flex: none;
+  border-radius: 4px 4px 4px 1.5px; background: var(--style-ink);
+}
+.style-who { font-size: 16.5px; font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.style-name { font: 700 21px/1 var(--font-hand); color: var(--style-ink); }
+/* A narrow page (the maker's 300px preview): a little less padding and smaller lines, so each stays on one line. */
+@container (max-width: 360px) {
+  .styles li { padding-right: 8px; column-gap: 10px; }
+}
+/*
+ * Six to eight people on a short screen (the maker's 300×600 preview, a small phone): names and styles only, no aside,
+ * and a smaller sticky (four 5px bubbles still fit).
+ */
+@media (max-height: 760px) {
+  .slide:has(.styles.many) .aside { display: none; }
+  .slide:has(.styles.many) .stage { padding-block: 6px; }
+  .styles.many { gap: 6px; }
+  .styles.many li { padding-block: 4px; }
+  .styles.many .style-who { font-size: 15.5px; line-height: 1.1; }
+  .styles.many .style-name { font-size: 19px; }
+  .styles.many .mini-texts { min-height: 32px; padding-block: 3px; }
+  .styles.many .mini-texts i { height: calc(1px + var(--lines) * 4px); }
+}
 
 /* Awards: a certified stamp on pink paper. */
 .slide[data-slide^="award-"] .stage { align-items: center; gap: 22px; text-align: center; }
@@ -238,6 +331,82 @@ figcaption time { font-size: 18px; white-space: nowrap; }
 .cta .button { margin-top: 6px; padding: 14px 26px; font-size: 18px; align-self: auto; white-space: nowrap; }
 .slide[data-slide="outro"] .link { font-size: 18px; }
 
+/*
+ * The last page: the summary card to save, laid out like its saved image (see summary.ts). A polaroid with the
+ * personality (or the chat's name), the top emoji on a postage stamp, taped notes with the numbers and award chips.
+ */
+.slide[data-slide="summary"] .stage { gap: 0; }
+.summary-card { position: relative; display: grid; gap: 18px; justify-items: center; }
+.summary-card .polaroid { width: min(310px, 84cqw); padding: 14px 14px 10px; --tilt: -2deg; }
+.summary-card .polaroid .photo { width: 100%; aspect-ratio: auto; min-height: 150px; padding: 18px 14px; gap: 10px; text-align: center; }
+.summary-card .photo-label { font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.8; }
+.summary-card .polaroid .photo .big { font-size: min(40px, 11.5cqw, 130cqw / var(--len, 8)); line-height: 0.95; letter-spacing: -0.03em; text-wrap: balance; }
+.summary-card .polaroid .hand { font-size: 23px; line-height: 1.05; margin-top: 8px; text-wrap: balance; }
+.postage {
+  position: absolute; top: -16px; right: max(0px, calc(50% - min(155px, 42cqw) - 22px)); z-index: 1;
+  padding: 5px; background: var(--card); box-shadow: var(--card-shadow);
+  outline: 2px dashed var(--ink-faint); outline-offset: -3px;
+  transform: rotate(8deg); animation: settle 560ms cubic-bezier(0.2, 0.9, 0.3, 1.25) 420ms both; --tilt: 8deg;
+}
+.postage > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 50px; height: 58px; background: var(--award-paper); }
+/* "TOP EMOJI" above the emoji, small, in the accent colour, like the saved image's stamp. */
+.postage-label { font: 800 6.5px/1 var(--font-body); letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; color: var(--orange); }
+.postage-emoji { font-size: 28px; line-height: 1; }
+/* Every note is the same height, each number and label on one line, so they line up across the grid. */
+.summary-notes { list-style: none; margin: 0; padding: 0; width: min(320px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 16px 12px; }
+.summary-notes li { display: grid; align-content: start; gap: 4px; padding: 12px 12px 8px; --tilt: -1.5deg; --note-ink: var(--orange); }
+.summary-notes li:nth-child(2) { --tilt: 1.2deg; --note-ink: var(--blue); }
+.summary-notes li:nth-child(3) { --tilt: 1deg; --note-ink: var(--green); }
+.summary-notes li:nth-child(4) { --tilt: -1.2deg; --note-ink: var(--purple); }
+.summary-notes.odd li:last-child { grid-column: 1 / -1; justify-self: center; width: calc(50% - 6px); }
+.summary-notes .taped::before { top: -9px; left: 32%; width: 54px; height: 17px; }
+.summary-notes b { font-size: min(26px, 7.4cqw); font-weight: 800; line-height: 1; letter-spacing: -0.02em; color: var(--note-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/*
+ * A label stays on one line: a longer one ("streak w Valentinovich", --len characters) is written a little smaller to
+ * fit a note's width (--note-w), and one that still doesn't fit ends in "…". The padding keeps a descender unclipped.
+ */
+.summary-notes .hand {
+  --note-w: calc((min(320px, 100cqw - 52px) - 12px) / 2 - 24px);
+  font-size: clamp(13px, var(--note-w) / (var(--len, 10) * 0.42), var(--hand-max, 19px)); line-height: 1; color: var(--ink-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 3px; margin-bottom: -3px;
+}
+.summary-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 10px; }
+.summary-chips .chip { padding: 5px 12px 4px; font: 700 20px/1.1 var(--font-hand); color: var(--award-red); --tilt: -1.5deg; }
+.summary-chips .chip:nth-child(even) { color: var(--ink); --tilt: 1.5deg; }
+
+/*
+ * A short page (the maker's 300×600 preview, a small phone): tighter spacing, ruled lines and name cards, so every page
+ * fits without scrolling. A tall phone (390×844) keeps the roomier layout above.
+ */
+@media (max-height: 700px) {
+  .slide { gap: 6px; }
+  h2 { margin-top: 10px; }
+  .stage { gap: 10px; padding-block: 6px; }
+  .bars { gap: 8px; }
+  .bars li { padding-block: 8px; }
+  .word-notes { gap: 10px; }
+  .note.lined { padding: 12px; background: repeating-linear-gradient(transparent 0 25px, rgba(29, 78, 216, 0.16) 25px 26px), var(--card); }
+  .words li { line-height: 26px; }
+  .note.sticky { padding: 12px 10px; }
+  .signature { gap: 6px; }
+  .signature li { padding: 4px 10px; font-size: 14px; }
+  .signature b { font-size: 19px; }
+  .slide[data-slide^="award-"] .stage { gap: 12px; }
+  .summary-card { gap: 12px; }
+  .summary-card .polaroid { padding: 8px 8px 6px; }
+  .summary-card .polaroid .photo { min-height: 92px; padding: 10px; gap: 4px; }
+  .summary-card .polaroid .hand { font-size: 19px; margin-top: 5px; }
+  .postage { top: -24px; right: max(-6px, calc(50% - min(155px, 42cqw) - 30px)); }
+  .postage > span { width: 38px; height: 44px; gap: 2px; }
+  .postage-label { font-size: 5px; }
+  .postage-emoji { font-size: 21px; }
+  .summary-card .photo-label { font-size: 10px; letter-spacing: 0.1em; }
+  .summary-notes { gap: 12px 10px; }
+  .summary-notes li { padding: 9px 10px 6px; gap: 2px; }
+  .summary-notes .hand { --hand-max: 17px; --note-w: calc((min(320px, 100cqw - 52px) - 10px) / 2 - 20px); }
+  .summary-chips .chip { padding: 3px 10px 2px; font-size: 17px; }
+}
+
 /* ---------- What was the convo? A greatest hit's conversation (see convo.ts) ---------- */
 
 /*
@@ -251,6 +420,39 @@ figcaption time { font-size: 18px; white-space: nowrap; }
   font: 700 22px/1 var(--font-hand); color: var(--orange); transform: rotate(-2deg); transform-origin: right;
 }
 .see-convo:hover { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+/*
+ * Three quotes: under each, who and the reactions on a line of their own, then when it was sent with "see the convo"
+ * beside it. When the two don't fit side by side (a narrow page, a long date), the link goes on to its own line
+ * instead of running into the date.
+ */
+.quotes.three { gap: 22px; }
+.quotes.three figure { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; padding: 18px 16px 10px; }
+.quotes.three blockquote { flex: 1 0 100%; margin-bottom: 6px; }
+.quotes.three figcaption { display: contents; }
+.quotes.three figcaption .by { flex: 1 0 100%; }
+.quotes.three figcaption time { margin-top: 4px; }
+/* its tap area, taller than its words, hangs up and out into the card's padding */
+.quotes.three .see-convo { margin: -6px -12px -12px auto; }
+/* A short page (a laptop window, a small phone, the maker's 300×600 preview): smaller type and less space around it. */
+@media (max-height: 760px) {
+  .slide:has(.quotes.three) .stage { padding-block: 4px; }
+  .quotes.three { gap: 16px; }
+  .quotes.three figure { column-gap: 10px; padding: 13px 13px 6px; }
+  .quotes.three blockquote { font-size: 16.5px; margin-bottom: 4px; }
+  .quotes.three figcaption { font-size: 19px; }
+  .quotes.three figcaption time { font-size: 16px; margin-top: 2px; }
+  .quotes.three .see-convo { padding: 0 10px; font-size: 20px; margin: -7px -10px -10px auto; }
+  .quotes.three figure::before { top: -10px; height: 20px; width: 84px; }
+}
+@media (max-height: 700px) {
+  .quotes.three { gap: 14px; }
+  .quotes.three figure { padding: 11px 12px 6px; }
+  .quotes.three blockquote { font-size: 15px; line-height: 1.17; margin-bottom: 3px; }
+  .quotes.three figcaption { font-size: 17.5px; }
+  .quotes.three figcaption time { font-size: 15px; }
+  .quotes.three .see-convo { font-size: 19px; }
+  .quotes.three figure::before { top: -9px; height: 17px; width: 72px; }
+}
 
 /* The page the screenshot is taped to: the size of a story page over the dimmed desk, the whole screen on a phone. */
 .convo { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(43, 33, 24, 0.45); animation: fade-in 220ms ease-out both; }
@@ -322,6 +524,25 @@ figcaption time { font-size: 18px; white-space: nowrap; }
 .mine .bubble { border-radius: 19px 19px 6px 19px; background: var(--orange); color: #FFF7ED; transform-origin: right center; }
 .bubble.media { background: transparent; border: 1.5px dashed rgba(43, 33, 24, 0.35); color: var(--ink-muted); }
 .mine .bubble.media { border-color: var(--orange); color: var(--orange); }
+/*
+ * The maker's preview only: your own photo, as a print stuck in the thread. The frame keeps one size while it loads,
+ * so the thread doesn't jump; the photo fades in over "📷 Photo".
+ */
+.bubble.photo {
+  position: relative; display: grid; place-items: center; width: min(180px, 52vw); aspect-ratio: 4 / 5; padding: 0;
+  border: 5px solid var(--card); border-radius: 18px; background: #ECE3D3; color: var(--ink-muted); overflow: hidden;
+  box-shadow: 0 10px 18px -10px rgba(43, 33, 24, 0.55), 0 1px 3px rgba(43, 33, 24, 0.2);
+  transform: rotate(-1.5deg);
+}
+.mine .bubble.photo { background: #ECE3D3; color: var(--ink-muted); transform: rotate(1.5deg); }
+.bubble.photo img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 13px;
+  opacity: 0; transition: opacity 260ms ease;
+}
+.bubble.photo.loaded img { opacity: 1; }
+/* A text sent with a photo: the photo sits above the text, on the sender's side. */
+.bubble-wrap:has(.photo.above) { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.mine .bubble-wrap:has(.photo.above) { align-items: flex-end; }
 /* Reactions sit on the bubble's top corner. */
 .tapback {
   position: absolute; top: -12px; right: -10px; z-index: 1; padding: 3px 8px; border-radius: 999px;

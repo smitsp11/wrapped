@@ -56,10 +56,14 @@ code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; 
   font: 800 14px/1.2 var(--font-body); cursor: pointer; transform: rotate(-2deg); white-space: nowrap;
 }
 .made:hover { background: rgba(21, 128, 61, 0.08); }
+/* Remake: a quiet link under the stamp. */
+.made-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.made-actions .remake { align-self: center; font-size: 13px; font-weight: 600; color: var(--ink-muted); text-decoration-thickness: 1px; }
+.made-actions .remake:disabled { cursor: default; opacity: 0.6; }
 @media (max-width: 560px) {
   .chat-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
   .chat-row .count { grid-row: 2; grid-column: 1; }
-  .chat-row .button, .chat-row .made { grid-row: 1 / span 2; grid-column: 2; }
+  .chat-row .button, .chat-row .made-actions { grid-row: 1 / span 2; grid-column: 2; }
 }
 
 /* ---------- One wrap ---------- */

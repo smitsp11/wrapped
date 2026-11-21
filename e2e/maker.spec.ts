@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 import { makeFakeWrap } from '../fixtures/fakeWrap'
 import { MAX_LINK_CHARS, unpackWrap } from '../src/share/pack'
@@ -108,6 +109,20 @@ test('home: wraps made before show Made ✓ · Watch and open without building a
   await rows(page).nth(1).getByRole('button', { name: 'Made ✓ · Watch' }).click()
   await expect(page).toHaveURL(/#\/wrap\/chat-2-2-2026$/)
   expect(buildCalls).toBe(0)
+})
+
+test('home: a made wrap has a quiet "remake" link that builds it again and opens it', async ({ page }) => {
+  const state = { ...baseState, solo: { wrapId: 'me-2026', made: true }, groups: groups.map((g) => ({ ...g, made: g.id === 2 })) }
+  await mockApi(page, { state })
+  await page.goto('/maker.html?t=tok')
+  await expect(page.getByRole('button', { name: /^Remake/ })).toHaveCount(2)
+  await expect(rows(page).nth(0).getByRole('button', { name: /^Remake/ })).toHaveCount(0) // not made yet: Wrap it
+  await rows(page).nth(1).getByRole('button', { name: 'Remake Chat 2' }).click()
+  await expect(page).toHaveURL(/#\/wrap\/chat-2-2-2026$/)
+  await page.getByRole('link', { name: '← All chats' }).click()
+  await page.getByRole('button', { name: 'Remake my year' }).click()
+  await expect(page).toHaveURL(/#\/wrap\/me-2026$/)
+  expect(buildBodies).toEqual([{ kind: 'groups', chatIds: [2] }, { kind: 'solo' }])
 })
 
 test('home: a double click makes the wrap once', async ({ page }) => {
@@ -299,7 +314,7 @@ test('wrap: on a laptop the preview leads, with the title and Send beside it, ce
   await mockApi(page)
   await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
   await expect(page.getByRole('button', { name: 'Send to group chat' })).toBeEnabled()
-  await expect(page.getByText('320 messages · 5 people')).toBeVisible()
+  await expect(page.getByText('344 messages · 5 people')).toBeVisible()
   const before = await wrapLayout(page)
   expect(before.phone.width).toBeGreaterThan(280)
   expect(before.phone.width).toBeLessThan(360)
@@ -486,4 +501,48 @@ test('close: when the app stops on its own (q in the terminal), the page says it
   await page.route('**/api/session', (r) => r.abort())
   await page.goto('/maker.html?t=tok')
   await expect(page.getByText('iMessage Wrapped is closed.')).toBeVisible({ timeout: 10_000 })
+})
+
+// ---------- Saving a page from the preview ----------
+
+test('wrap: "save ↓" works in the preview too, without turning its page', async ({ page }) => {
+  await mockApi(page)
+  // On a phone the preview shares the image; this stands in for the share sheet (it runs in the preview's frame too).
+  await page.addInitScript(() => {
+    const w = window as unknown as { shared: File[] }
+    w.shared = []
+    Object.defineProperty(navigator, 'canShare', { value: (data?: ShareData) => !!data?.files?.length, configurable: true })
+    Object.defineProperty(navigator, 'share', { value: async (data: ShareData) => void w.shared.push(...data.files!), configurable: true })
+  })
+  await page.goto('/maker.html?t=tok#/wrap/chat-1-1-2026')
+  await expect(page.locator('iframe.phone')).toHaveAttribute('src', /#/)
+  const preview = page.frameLocator('iframe.phone')
+  const slide = preview.getByTestId('slide')
+  await expect(slide).toBeVisible()
+  // A tap on the right of the page turns it.
+  const box = (await slide.boundingBox())!
+  for (let i = 0; i < 40 && (await slide.getAttribute('data-slide')) !== 'hits'; i++) {
+    await slide.click({ position: { x: box.width * 0.8, y: box.height / 2 } })
+  }
+  await expect(slide).toHaveAttribute('data-slide', 'hits')
+
+  const save = preview.locator('.save-slide')
+  let bytes: number[]
+  if (await page.evaluate(() => matchMedia('(pointer: coarse)').matches)) {
+    await save.tap()
+    await expect(save).toHaveText('done ✓')
+    const frame = page.frames().find((f) => f.url().includes('/index.html'))!
+    bytes = await frame.evaluate(async () => {
+      const file = (window as unknown as { shared: File[] }).shared[0]!
+      return [...new Uint8Array(await file.arrayBuffer()).slice(0, 24)]
+    })
+  } else {
+    const [download] = await Promise.all([page.waitForEvent('download'), save.click()])
+    expect(download.suggestedFilename()).toBe('poker-night-greatest-hits.png')
+    await expect(save).toHaveText('saved ✓')
+    bytes = [...readFileSync((await download.path())!).subarray(0, 24)]
+  }
+  const header = new DataView(new Uint8Array(bytes).buffer)
+  expect([header.getUint32(16), header.getUint32(20)]).toEqual([1080, 1920])
+  await expect(slide).toHaveAttribute('data-slide', 'hits')
 })

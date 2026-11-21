@@ -1,8 +1,12 @@
 import { formatMinutes } from '../../src/format'
-import { SHOWN_HITS } from '../../src/stats/greatestHits'
+import { DAY } from '../../src/stats/conversation'
+import { SHOWN_HITS, shortQuote } from '../../src/stats/greatestHits'
 import { caption } from './captions'
+import { summarySlide } from './summary'
+import { monthPeopleSlide, monthsSlide, personStreakSlide } from './yearSlides'
 import { OTHERS_ID } from '../../src/types'
 import type { Wrap } from '../../src/types'
+import { PARAGRAPH_TEXTER_MIN_WORDS, textingStyles } from '../../src/wrap/textingStyles'
 
 export type Slide = { id: string; html: string }
 type Row = { name: string; value: number }
@@ -26,11 +30,11 @@ export function escapeHtml(text: string): string {
 }
 
 /** Own-property check: an id like "toString" must not find something on Object.prototype. */
-function personName(wrap: Wrap, id: string): string {
+export function personName(wrap: Wrap, id: string): string {
   return Object.hasOwn(wrap.people, id) ? wrap.people[id]! : 'Someone'
 }
 
-function plural(n: number, word: string): string {
+export function plural(n: number, word: string): string {
   return `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
 }
 
@@ -38,7 +42,7 @@ function hourLabel(hour: number): string {
   return `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** "Jan 1 → Nov 19". `to` is the day after the last one (the period is [from, to)). */
 export function periodLabel(period: { from: string; to: string }): string {
@@ -61,9 +65,59 @@ export function longestWord(text: string): number {
   return Math.max(1, ...text.split(/\s+/).map((word) => [...word].length))
 }
 
-/** A handwritten aside under a heading, or nothing. */
-function aside(text: string | null): string {
-  return text ? `<p class="aside">${escapeHtml(text)}</p>` : ''
+/**
+ * A handwritten aside under a heading: a few words, then a quip from captions.ts when one holds. Either may be missing,
+ * and with neither there's no aside. Asides never explain how a number was worked out.
+ */
+export function aside(text: string | null, quip: string | null = null): string {
+  if (!text && !quip) return ''
+  // The quip stays in one piece, so a narrow page moves "(it's not close)" to the next line instead of splitting it.
+  const parts = [text ? escapeHtml(text) : '', quip ? `<span class="quip">${escapeHtml(quip)}</span>` : ''].filter(Boolean)
+  return `<p class="aside">${parts.join(' ')}</p>`
+}
+
+/**
+ * Days in the period that have happened by `today` (local): a year-so-far wrap ends today anyway, and a wrap whose period
+ * hasn't ended yet only has messages up to now. At least 1.
+ */
+export function daysSoFar(period: { from: string; to: string }, today: Date = new Date()): number {
+  const tomorrow = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+  const end = Math.min(Date.parse(`${period.to}T00:00:00Z`), tomorrow)
+  return Math.max(1, Math.round((end - Date.parse(`${period.from}T00:00:00Z`)) / DAY))
+}
+
+/**
+ * "That's about 660 texts a day". Rounded the way a person would say it: to the nearest 100 from 1,000 a day, the nearest
+ * 10 from 100, else a whole number. Under one a day it counts per week instead, and under one a week it says nothing.
+ */
+export function perDayLabel(total: number, days: number): string | null {
+  const daily = total / Math.max(days, 1)
+  const step = daily >= 1000 ? 100 : daily >= 100 ? 10 : 1
+  if (daily >= 1) return `That's about ${plural(Math.round(daily / step) * step, 'text')} a day`
+  const weekly = Math.round(daily * 7)
+  return weekly >= 1 ? `That's about ${plural(weekly, 'text')} a week` : null
+}
+
+/** Days in the period: a year-so-far wrap's period ends tomorrow, so this counts today. */
+export function periodDays(period: { from: string; to: string }): number {
+  return Math.max(1, Math.round((Date.parse(`${period.to}T00:00:00Z`) - Date.parse(`${period.from}T00:00:00Z`)) / DAY))
+}
+
+/** A streak of at least this many days that covers the whole period gets "you never missed a day". */
+const MIN_NEVER_MISSED_DAYS = 7
+
+/**
+ * True when the any-message streak covers the whole period. The day the wrap was made counts as covered even if nothing
+ * was sent yet, since a year-so-far wrap's period runs to the end of today.
+ */
+export function neverMissedADay(wrap: Wrap): boolean {
+  const days = periodDays(wrap.period)
+  return days >= MIN_NEVER_MISSED_DAYS && wrap.timing.longestStreakDays >= days - 1
+}
+
+/** A small handwritten touch under the streak calendar, like "you never missed a day of texting". */
+export function neverMissedNote(text: string): string {
+  return `<p class="never-missed">${escapeHtml(text)}</p>`
 }
 
 /** The footer hint on the intro and award pages. */
@@ -92,8 +146,8 @@ function bars(
   return `<ol class="bars">${items.join('')}</ol>`
 }
 
-/** Turns a wrap into story slides. Pure (no DOM), so it's unit-tested. */
-export function buildSlides(wrap: Wrap): Slide[] {
+/** Turns a wrap into story slides. Pure (no DOM), so it's unit-tested; `today` only caps the per-day average. */
+export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
   const isGroup = wrap.mode === 'group'
   const ranked = (record: Record<string, number>, order: 'desc' | 'asc' = 'desc', skip: string[] = []): Row[] =>
     Object.entries(record)
@@ -107,6 +161,7 @@ export function buildSlides(wrap: Wrap): Slide[] {
   const total = wrap.volume.total.toLocaleString('en-US')
   // A group wrap is a letter to the group; a solo wrap is titled like "Your 2026".
   const greeting = isGroup ? `dear ${escapeHtml(wrap.title)},` : escapeHtml(wrap.title)
+  const perDay = perDayLabel(wrap.volume.total, daysSoFar(wrap.period, today))
   slides.push({
     id: 'intro',
     html: `<p class="kicker">${isGroup ? 'Group Chat Wrapped' : 'Your Texts Wrapped'} · ${year}</p>
@@ -116,12 +171,14 @@ export function buildSlides(wrap: Wrap): Slide[] {
           <div class="photo"><p class="big" style="--len:${total.length}">${total}</p><p>messages</p></div>
           <p class="hand">${escapeHtml(periodLabel(wrap.period))}</p>
         </div>
-        <p class="lede">${isGroup ? "That's a lot of talking. Here's what you all did with it." : "That's a lot of texting. Here's where it went."}</p>
+        ${perDay ? `<p class="per-day">${escapeHtml(perDay)}</p>` : ''}
       </div>
       ${HINT}`,
   })
 
-  // Solo: you are in every chat, so "who you text the most" leaves you out.
+  // Solo: you are in every chat, so "who texts you the most" leaves you out. It counts the messages each person sent, in
+  // every chat you share with them (one-on-one and groups); your own messages aren't in it. Top chats counts everyone's
+  // messages in each thread, yours included.
   const volumeRows = ranked(wrap.volume.byPerson, 'desc', isGroup ? [] : ['me'])
   if (volumeRows.length > 0) {
     const total = Math.max(wrap.volume.total, 1)
@@ -133,22 +190,25 @@ export function buildSlides(wrap: Wrap): Slide[] {
     const format = isGroup ? (n: number) => `${share(n)}%` : undefined
     slides.push({
       id: 'volume',
-      html: `<h2>${isGroup ? 'Who talked the most' : 'Who you text the most'}</h2>${aside(note)}
+      html: `<h2>${isGroup ? 'Who talked the most' : 'Who texts you the most'}</h2>${aside(isGroup ? null : 'texts they sent', note)}
         <div class="stage">${bars(volumeRows, format)}</div>`,
     })
   }
 
   if (wrap.topChats.length > 0) {
     const rows = wrap.topChats.map((c) => ({ name: c.name, value: c.messages }))
-    slides.push({ id: 'top-chats', html: `<h2>Your top chats</h2><div class="stage">${bars(rows)}</div>` })
+    slides.push({ id: 'top-chats', html: `<h2>Your top chats</h2>${aside('whole threads')}<div class="stage">${bars(rows)}</div>` })
   }
+
+  const monthPeople = monthPeopleSlide(wrap)
+  if (monthPeople) slides.push(monthPeople)
 
   const top = Math.max(...wrap.timing.byHour)
   const peak = Math.max(top, 1)
   const peakHour = wrap.timing.byHour.indexOf(top)
   slides.push({
     id: 'hours',
-    html: `<h2>Peak hour</h2>${aside(caption({ slide: 'hours', peakHour, peakCount: top }))}
+    html: `<h2>Peak hour</h2>${aside(isGroup ? "the chat's rush hour" : 'your texting rush hour', caption({ slide: 'hours', peakHour, peakCount: top }))}
       <div class="stage">
         <div class="note taped">
           <p class="big">${hourLabel(peakHour)}</p>
@@ -163,20 +223,20 @@ export function buildSlides(wrap: Wrap): Slide[] {
       </div>`,
   })
 
-  // Across all your chats the longest silence is ~0, so only a group chat shows it, and only when it's real.
-  const silenceDays = wrap.timing.longestSilenceDays
-  const silence = isGroup && silenceDays >= 2 ? `<p class="lede">Longest silence: ${plural(silenceDays, 'day')}.</p>` : ''
+  slides.push(monthsSlide(wrap))
+
   const streakDays = wrap.timing.longestStreakDays
-  slides.push({
+  // My year leads with the longest streak with one person (personStreakSlide); a group, or an older link, with any message.
+  slides.push(personStreakSlide(wrap) ?? {
     id: 'streak',
-    html: `<h2>Longest streak</h2>${aside(caption({ slide: 'streak', days: streakDays }))}
+    html: `<h2>Longest streak</h2>
       <div class="stage">
         <div class="calendar">
           <p class="rings" aria-hidden="true"><span></span><span></span></p>
           <p class="big">${plural(streakDays, 'day')}</p>
-          <p class="hand">in a row with at least one message.</p>
+          <p class="hand">in a row with at least one message</p>
         </div>
-        ${silence}
+        ${neverMissedADay(wrap) ? neverMissedNote(isGroup ? 'not a single quiet day' : 'you never missed a day of texting') : ''}
       </div>`,
   })
 
@@ -189,15 +249,16 @@ export function buildSlides(wrap: Wrap): Slide[] {
   const replies = ranked(experienced, 'asc')
   if (replies.length > 0) {
     // Each person's median time to join a conversation someone else started (timed from its first message), so one slow
-    // night doesn't count against them. The aside calls it "average", the everyday word, and says it's about jumping in.
+    // night doesn't count against them.
     slides.push({
       id: 'replies',
-      html: `<h2>Fastest repliers</h2>${aside('(average time to jump in)')}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
+      html: `<h2>Fastest repliers</h2><div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
     })
   }
 
   const starts = ranked(wrap.starters.startsByPerson)
   if (starts.length > 0) {
+    // A conversation starts after a few quiet hours (see conversations in src/stats/conversation.ts).
     slides.push({ id: 'starters', html: `<h2>Who starts the conversation</h2><div class="stage">${bars(starts)}</div>` })
   }
 
@@ -208,6 +269,9 @@ export function buildSlides(wrap: Wrap): Slide[] {
 
   const words = wordsSlide(wrap)
   if (words) slides.push(words)
+
+  const styles = textingStylesSlide(wrap)
+  if (styles) slides.push(styles)
 
   const hits = hitsSlide(wrap)
   if (hits) slides.push(hits)
@@ -241,6 +305,8 @@ export function buildSlides(wrap: Wrap): Slide[] {
         <a class="link" href="#" data-restart>Watch again</a>
       </div>`,
   })
+  // The last page: a summary card to save (your share card, or the group's), after the outro's ask.
+  slides.push(summarySlide(wrap))
   return slides
 }
 
@@ -269,6 +335,7 @@ function wordsSlide(wrap: Wrap): Slide | null {
     .join('')
   return {
     id: 'words',
+    // A group's top words are the ones it says more than your other chats (wordStats' baseline); solo, your most-used.
     html: `<h2>${wrap.mode === 'group' ? "The group's vocabulary" : 'Your vocabulary'}</h2>
       <div class="stage">
         <div class="word-notes${long ? ' long' : ''}">
@@ -280,16 +347,62 @@ function wordsSlide(wrap: Wrap): Slide | null {
   }
 }
 
+/** The texting styles slide lists at most this many people (the busiest), which fits the maker's 300px preview. */
+export const MAX_STYLE_ROWS = 8
+/** The slide needs at least this many people with a style, so it compares people rather than describing one. */
+export const MIN_STYLE_ROWS = 2
+/** More rows than this get the compact "many" layout (see styles.css). */
+const ROOMY_STYLE_ROWS = 5
+/** The mini-bubble hint draws at most this many texts in a row. */
+const MAX_HINT_BUBBLES = 4
+/** In the hint, a typical text of this many words or more is a two-line bubble (a paragraph is three). */
+const TWO_LINE_WORDS = 8
+
+/**
+ * A tiny picture of how someone texts: one mini bubble per text in a typical turn, as wide as their typical text is long;
+ * a paragraph (PARAGRAPH_TEXTER_MIN_WORDS or more) is a taller bubble.
+ */
+function textingHint(medianWords: number, textsPerTurn: number): string {
+  const count = Math.min(MAX_HINT_BUBBLES, Math.max(1, Math.round(textsPerTurn)))
+  const width = Math.min(100, Math.round(22 + medianWords * 6))
+  const lines = medianWords >= PARAGRAPH_TEXTER_MIN_WORDS ? 3 : medianWords >= TWO_LINE_WORDS ? 2 : 1
+  const bubble = `<i style="--w:${width}%;--lines:${lines}"></i>`
+  return `<span class="mini-texts" aria-hidden="true">${bubble.repeat(count)}</span>`
+}
+
+/**
+ * Group wraps: everyone's texting style (src/wrap/textingStyles.ts), busiest first. Shown only when at least
+ * MIN_STYLE_ROWS people have one and someone isn't Perfectly Balanced, so it never just says everyone is normal.
+ */
+function textingStylesSlide(wrap: Wrap): Slide | null {
+  if (wrap.mode !== 'group') return null
+  const people = textingStyles(wrap).slice(0, MAX_STYLE_ROWS)
+  if (people.length < MIN_STYLE_ROWS || people.every((p) => p.style.id === 'balanced')) return null
+  const rows = people
+    .map(
+      (p, i) =>
+        `<li data-style="${p.style.id}" style="--i:${i}">${textingHint(p.medianWords, p.textsPerTurn)}` +
+        `<span class="style-who">${escapeHtml(personName(wrap, p.personId))}</span>` +
+        `<span class="style-name">${escapeHtml(p.style.name)}</span></li>`,
+    )
+    .join('')
+  return {
+    id: 'texting-styles',
+    html: `<h2>Texting styles</h2>${aside('(500 texts or paragraphs?)')}
+      <div class="stage"><ul class="styles${people.length > ROOMY_STYLE_ROWS ? ' many' : ''}">${rows}</ul></div>`,
+  }
+}
+
 function hitsSlide(wrap: Wrap): Slide | null {
   if (wrap.greatestHits.length === 0) return null
   const quotes = wrap.greatestHits.slice(0, SHOWN_HITS).map((h, i) => {
     const who = escapeHtml(personName(wrap, h.senderId))
-    // A group wrap's quote opens the conversation around it (see convo.ts). Solo wraps never carry one.
-    const convo = wrap.mode === 'group' && h.conversation !== undefined
+    // A quote opens the conversation around it (see convo.ts), in a group wrap or My year.
+    const convo = h.conversation !== undefined
     const time = escapeHtml(sentLabel(h.sentAt))
     return (
-      `<figure${convo ? ` data-convo="${i}"` : ''}><blockquote>“${escapeHtml(h.text)}”</blockquote>` +
-      `<figcaption><span>${who} · ${plural(h.reactions, 'reaction')}</span>` +
+      `<figure${convo ? ` data-convo="${i}"` : ''}><blockquote>“${escapeHtml(shortQuote(h.text))}”</blockquote>` +
+      `<figcaption><span class="by"><span class="by-name">${who}</span><span class="by-count"> · ${plural(h.reactions, 'reaction')}</span></span>` +
       `<time datetime="${escapeHtml(h.sentAt)}">${time}</time></figcaption>` +
       (convo
         ? `<button type="button" class="see-convo" aria-label="see the convo: ${who}, ${time}" aria-haspopup="dialog">see the convo →</button>`
@@ -297,11 +410,11 @@ function hitsSlide(wrap: Wrap): Slide | null {
       `</figure>`
     )
   })
-  // Two or three quotes get a smaller type size so they fit.
-  const size = quotes.length > 1 ? 'compact' : 'single'
+  // Two or three quotes get a smaller type size so they fit; three also put the date and "see the convo" on one line.
+  const size = quotes.length === 3 ? 'compact three' : quotes.length > 1 ? 'compact' : 'single'
   return {
     id: 'hits',
-    html: `<h2>Greatest hits</h2><p class="aside">ranked by reactions</p>
+    html: `<h2>Greatest hits</h2>
       <div class="stage"><div class="quotes ${size}">${quotes.join('')}</div></div>`,
   }
 }

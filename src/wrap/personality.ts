@@ -11,7 +11,7 @@ export type PersonalityId =
   | 'starter'
   | 'double-texter'
   | 'hype-machine'
-  | 'essayist'
+  | 'paragraph-texter'
   | 'group-chat-glue'
   | 'yapper'
 
@@ -40,8 +40,8 @@ export const DOUBLE_TEXTER_MIN_COUNT = 10
 export const HYPE_MIN_REACTIONS_PER_MESSAGE = 0.25
 /** …and at least this many reactions. */
 export const HYPE_MIN_REACTIONS = 20
-/** The Essayist: your longest message has at least this many characters (the wrap keeps only its length). */
-export const ESSAYIST_MIN_CHARS = 1000
+/** Paragraph Texter: your longest message has at least this many characters (the wrap keeps only its length). */
+export const PARAGRAPH_TEXTER_MIN_CHARS = 1000
 /** Group Chat Glue: the wrap has this many top chats (its maximum)… */
 export const GLUE_MIN_CHATS = 5
 /** …and the busiest one has under this share of all messages, so your texting is spread across them. */
@@ -53,7 +53,7 @@ export const PERSONALITIES: Record<PersonalityId, Personality> = {
   starter: { id: 'starter', name: 'The Starter', line: 'Always the one who texts first.' },
   'double-texter': { id: 'double-texter', name: 'Double Texter', line: 'One message is never enough.' },
   'hype-machine': { id: 'hype-machine', name: 'Hype Machine', line: 'Never leaves a text without a reaction.' },
-  essayist: { id: 'essayist', name: 'The Essayist', line: 'Why send a text when you can send a paragraph?' },
+  'paragraph-texter': { id: 'paragraph-texter', name: 'Paragraph Texter', line: 'Why send a text when you can send a paragraph?' },
   'group-chat-glue': { id: 'group-chat-glue', name: 'Group Chat Glue', line: 'Keeps every chat alive.' },
   yapper: { id: 'yapper', name: 'The Yapper', line: 'Simply has a lot to say.' },
 }
@@ -103,8 +103,8 @@ const RULES: { id: PersonalityId; holds: (wrap: Wrap) => boolean }[] = [
     },
   },
   {
-    id: 'essayist',
-    holds: (w) => w.words.longestMessage?.senderId === ME && w.words.longestMessage.length >= ESSAYIST_MIN_CHARS,
+    id: 'paragraph-texter',
+    holds: (w) => w.words.longestMessage?.senderId === ME && w.words.longestMessage.length >= PARAGRAPH_TEXTER_MIN_CHARS,
   },
   {
     id: 'group-chat-glue',

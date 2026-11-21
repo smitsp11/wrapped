@@ -18,19 +18,19 @@ describe('the fake "Poker Night" chat', () => {
   })
 
   it('counts every message', () => {
-    expect(wrap.volume.total).toBe(320)
+    expect(wrap.volume.total).toBe(344)
     expect(Object.fromEntries(Object.entries(wrap.volume.byPerson).map(([id, n]) => [nameOf(wrap, id), n]))).toEqual({
-      'Alex Chen': 93, You: 80, 'Sam Rivera': 69, 'Jordan Lee': 68, 'Riley Park': 10,
+      'Alex Chen': 93, You: 80, 'Sam Rivera': 69, 'Jordan Lee': 68, 'Riley Park': 34,
     })
   })
 
   it('gives the expected awards', () => {
     expect(wrap.awards.map((a) => [a.id, nameOf(wrap, a.personId), a.value])).toEqual([
-      ['main-character', 'Alex Chen', 29.1],
+      ['main-character', 'Alex Chen', 27],
       ['ghost', 'Jordan Lee', 314],
       ['starter', 'Alex Chen', 60],
       ['comedian', 'Alex Chen', 68.8],
-      ['hype', 'Sam Rivera', 62],
+      ['hype', 'Sam Rivera', 64],
       ['night-owl', 'Jordan Lee', 88.2],
       ['double-texter', 'You', 20],
     ])
@@ -53,6 +53,8 @@ describe('the fake "Poker Night" chat', () => {
     expect(wrap.greatestHits.map((h) => [nameOf(wrap, h.senderId), h.text, h.reactions])).toEqual([
       ['Alex Chen', 'poker tonight?', 4],
       ['You', 'omw', 3],
+      ['You', 'who has the cards and chips. run it back', 3],
+      ['You', 'omw', 2],
     ])
     expect(Object.fromEntries(Object.entries(wrap.words.signatureWordByPerson).map(([id, w]) => [nameOf(wrap, id), w]))).toEqual({
       'Alex Chen': 'run it back', You: 'omw', 'Sam Rivera': 'chips', 'Jordan Lee': 'rebuy', 'Riley Park': 'dealer',
@@ -68,6 +70,17 @@ describe('the fake "Poker Night" chat', () => {
       { word: 'dealer', count: 11 },
     ])
     expect(wrap.words.topEmoji[0]).toEqual({ emoji: '🃏', count: 60 })
+  })
+
+  it('measures how everyone texts: Riley in bursts, Jordan in paragraphs, you in one word', () => {
+    const byName = (record: Record<string, number>) =>
+      Object.fromEntries(Object.entries(record).map(([id, n]) => [nameOf(wrap, id), n]))
+    expect(byName(wrap.texting!.medianWordsByPerson)).toEqual({
+      'Alex Chen': 2, 'Sam Rivera': 4, You: 1, 'Riley Park': 3, 'Jordan Lee': 20,
+    })
+    expect(byName(wrap.texting!.textsPerTurnByPerson)).toEqual({
+      'Alex Chen': 1, 'Sam Rivera': 1.1, You: 1.3, 'Riley Park': 3.4, 'Jordan Lee': 1,
+    })
   })
 
   it('reports the one message it could not decode', () => {
@@ -87,8 +100,8 @@ describe('the fake "Poker Night" chat', () => {
 
   it('builds a solo wrap with top chats', () => {
     const solo = makeFakeWrap('solo')
-    expect(solo.volume.total).toBe(330)
-    expect(solo.topChats).toEqual([{ name: 'Poker Night', messages: 320 }, { name: 'Alex Chen', messages: 10 }])
+    expect(solo.volume.total).toBe(354)
+    expect(solo.topChats).toEqual([{ name: 'Poker Night', messages: 344 }, { name: 'Alex Chen', messages: 10 }])
   })
 
   it('never contains a raw handle, in group or solo', () => {

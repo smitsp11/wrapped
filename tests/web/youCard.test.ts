@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
+import { maskHandle } from '../../src/format'
 import type { Wrap } from '../../src/types'
 import { PERSONALITIES } from '../../src/wrap/personality'
 import { HEIGHT, WIDTH, type YouCard, cardStats, drawYouCard, notePositions, wrapLines, youCardFrom } from '../../web/src/maker/youCard'
@@ -12,9 +13,27 @@ describe('youCardFrom', () => {
       textsSent: 85,
       peakHour: '8 PM',
       typicalReply: '14 min',
-      longestStreakDays: 61,
+      streak: { days: 61 }, // this fake has no streak with one person, so: days in a row with any message
       awards: ['Double Texter'],
     })
+  })
+
+  it('names your streak person by their first name only', () => {
+    const wrap = makeFakeWrap('solo')
+    wrap.people.p1 = 'Marisol Vega'
+    wrap.personStreak = { personId: 'p1', days: 117, from: '2026-03-01' }
+    expect(youCardFrom(wrap).streak).toEqual({ days: 117, with: 'Marisol' })
+  })
+
+  it('falls back to the any-message streak, with no name, without a streak with one person', () => {
+    const wrap = makeFakeWrap('solo')
+    wrap.timing.longestStreakDays = 325
+    const { personStreak: _, ...older } = wrap // a link from before the person streak
+    expect(youCardFrom(older).streak).toEqual({ days: 325 })
+    expect(youCardFrom({ ...wrap, personStreak: { personId: 'p1', days: 1, from: '2026-03-01' } }).streak).toEqual({ days: 325 })
+    // Only a masked number for them: no number on a card you post.
+    wrap.people.p1 = maskHandle('+14165550101')
+    expect(youCardFrom({ ...wrap, personStreak: { personId: 'p1', days: 90, from: '2026-03-01' } }).streak).toEqual({ days: 325 })
   })
 
   it('keeps your top emoji and only your awards', () => {
@@ -33,13 +52,14 @@ describe('youCardFrom', () => {
     const wrap = makeFakeWrap('solo')
     wrap.timing.byHour = new Array(24).fill(0)
     wrap.timing.longestStreakDays = 1
+    delete wrap.personStreak
     wrap.replies.repliesByPerson.me = 4
     wrap.words.topEmoji = []
     wrap.awards = []
     const card = youCardFrom(wrap)
     expect(card).not.toHaveProperty('peakHour')
     expect(card).not.toHaveProperty('typicalReply')
-    expect(card).not.toHaveProperty('longestStreakDays')
+    expect(card).not.toHaveProperty('streak')
     expect(card).not.toHaveProperty('topEmoji')
     expect(card.awards).toEqual([])
   })
@@ -56,7 +76,7 @@ describe('youCardFrom', () => {
     expect(youCardFrom(wrap).textsSent).toBe(0)
   })
 
-  it('never holds another name, a chat title, a quote or a word you texted', () => {
+  it("never holds a full name, a chat title, a quote or a word you texted; only your streak person's first name", () => {
     const secrets = [
       'Zebulon Quackenbush', 'Marigold Featherstone', 'Everyone else', 'Secret Bunker Crew', 'Thursday Trivia Gang',
       'the pineapple incident was not my fault', 'flibbertigibbet', 'snorkelwax', 'xylograph', '+1 555 0100',
@@ -69,6 +89,7 @@ describe('youCardFrom', () => {
     wrap.words.topWords = [{ word: secrets[8]!, count: 50 }]
     wrap.words.topEmoji = [{ emoji: '🃏', count: 5 }]
     wrap.title = secrets[9]!
+    wrap.personStreak = { personId: 'p1', days: 40, from: '2026-03-01' }
     wrap.awards.push({ id: 'ghost', title: 'The Ghost', personId: 'p1', value: 300, label: 'average reply 5h 0m' })
 
     const json = JSON.stringify(youCardFrom(wrap)).toLowerCase()
@@ -76,24 +97,29 @@ describe('youCardFrom', () => {
     for (const name of Object.values(wrap.people).filter((n) => n !== 'You')) expect(json).not.toContain(name.toLowerCase())
     // The Ghost went to someone else, so it isn't on your card either.
     expect(json).not.toContain('ghost')
+    expect(youCardFrom(wrap).streak).toEqual({ days: 40, with: 'Zebulon' })
+    expect(json).not.toContain('marigold')
   })
 })
 
 describe('cardStats', () => {
   const card: YouCard = {
     year: '2026', personality: PERSONALITIES.yapper, textsSent: 38412, peakHour: '1 AM', typicalReply: '42 sec',
-    longestStreakDays: 143, awards: [],
+    streak: { days: 1143, with: 'Marisol' }, awards: [],
   }
-  it('lists texts sent, peak hour, average reply and streak in that order', () => {
+  it('lists texts sent, peak hour, average reply and the streak with one person in that order', () => {
     expect(cardStats(card)).toEqual([
       { value: '38,412', label: 'texts sent' },
       { value: '1 AM', label: 'peak hour' },
       { value: '42 sec', label: 'average reply' },
-      { value: '143 days', label: 'longest streak' },
+      { value: '1,143 days', label: 'streak w Marisol' },
     ])
   })
+  it('calls a streak with no one named the longest streak', () => {
+    expect(cardStats({ ...card, streak: { days: 325 } }).at(-1)).toEqual({ value: '325 days', label: 'longest streak' })
+  })
   it('skips the ones the card does not have', () => {
-    expect(cardStats({ ...card, peakHour: undefined, longestStreakDays: undefined }).map((s) => s.label)).toEqual([
+    expect(cardStats({ ...card, peakHour: undefined, streak: undefined }).map((s) => s.label)).toEqual([
       'texts sent', 'average reply',
     ])
   })
@@ -181,15 +207,18 @@ describe('drawYouCard', () => {
   it('draws a 1080×1920 card with the heading, personality, stamp, stats, awards and site', async () => {
     const wrap = makeFakeWrap('solo')
     wrap.words.topEmoji = [{ emoji: '😭', count: 9 }]
+    wrap.people.p1 = 'Marisol Vega'
+    wrap.personStreak = { personId: 'p1', days: 117, from: '2026-03-01' }
     const { canvas, texts } = recordingCanvas()
     await drawYouCard(canvas, youCardFrom(wrap))
     expect([canvas.width, canvas.height]).toEqual([WIDTH, HEIGHT])
     expect(texts).toEqual(expect.arrayContaining([
-      'my 2026', 'in texts', 'Double', 'Texter', 'CERTIFIED', '😭', '85', 'texts sent', '★ Double Texter', 'wrapped.smitpatel.xyz',
+      'my 2026', 'in texts', 'Double', 'Texter', 'CERTIFIED', 'TOP EMOJI', '😭', '85', 'texts sent', '117 days',
+      'streak w Marisol', '★ Double Texter', 'wrapped.smitpatel.xyz',
     ]))
     const drawn = texts.join(' ')
     expect(drawn).toContain('One message is never enough.')
-    for (const name of ['Alex Chen', 'Sam Rivera', 'Jordan Lee', 'Riley Park', 'Poker Night']) expect(drawn).not.toContain(name)
+    for (const name of ['Raghunathan', 'Alex Chen', 'Sam Rivera', 'Jordan Lee', 'Riley Park', 'Poker Night']) expect(drawn).not.toContain(name)
   })
 
   it('skips the postage stamp without a top emoji', async () => {

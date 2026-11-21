@@ -1,0 +1,37 @@
+/* ---------- "save ↓": save a page as an image (see saveControl.ts) ---------- */
+
+/*
+ * Handwritten in the top right, just under the progress bar and above the heading. The button is 44px tall to tap,
+ * but the writing is small. It comes in after the page has turned.
+ */
+.save-slide {
+  position: absolute; z-index: 2;
+  top: calc(max(20px, env(safe-area-inset-top)) + 8px); right: 12px;
+  min-width: 44px; min-height: 44px; padding: 0 12px;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; background: none; cursor: pointer;
+  font: 700 23px/1 var(--font-hand); color: var(--ink-muted); white-space: nowrap;
+  transform: rotate(3deg);
+  -webkit-tap-highlight-color: transparent;
+  animation: fade-in 300ms ease-out 420ms both;
+}
+@media (hover: hover) { .save-slide:hover { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; } }
+.save-slide[data-state="busy"] { color: var(--ink-faint); cursor: progress; }
+.save-slide[data-state="done"] { color: var(--green); }
+.save-slide[data-state="failed"] { color: var(--award-red); }
+
+/* Only on a phone that can't share files: the image over the dimmed page, to press and hold. */
+.save-preview {
+  position: fixed; inset: 0; z-index: 20;
+  display: grid; place-items: center; align-content: center; gap: 14px;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background: rgba(43, 33, 24, 0.72); cursor: default;
+  animation: fade-in 200ms ease-out both;
+}
+.save-preview img {
+  display: block; max-width: min(86vw, 420px); max-height: calc(100dvh - 170px); width: auto; height: auto;
+  border-radius: 6px; box-shadow: 0 22px 50px -18px rgba(0, 0, 0, 0.6);
+  -webkit-touch-callout: default; user-select: auto;
+}
+.save-preview-hint { font: 700 24px/1 var(--font-hand); color: var(--paper); }
+.save-preview .button { margin-top: 0; align-self: auto; background: var(--paper); color: var(--ink); }

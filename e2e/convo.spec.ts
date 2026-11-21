@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-/** "What was the convo?" on the demo wrap: its two greatest hits each have a made-up conversation. */
+/** "What was the convo?" on the demo wrap: its three greatest hits each have a made-up conversation. */
 
 const currentSlide = (page: Page) => page.getByTestId('slide').getAttribute('data-slide')
 
@@ -113,6 +113,24 @@ test('back returns to the same slide, with focus on the quote that opened it', a
   // The story works again.
   await page.keyboard.press('ArrowRight')
   await expect(page.getByTestId('slide')).not.toHaveAttribute('data-slide', 'hits')
+})
+
+test('each of the three greatest hits opens its own conversation, and all three fit with their dates', async ({ page }) => {
+  await toHits(page)
+  const quotes = page.locator('.quotes figure')
+  await expect(quotes).toHaveCount(3)
+  await expect(page.locator('.quotes time')).toHaveCount(3)
+  const fits = await page.getByTestId('slide').evaluate((el) => el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth)
+  expect(fits).toBe(true)
+  for (const i of [0, 1, 2]) {
+    const quote = (await quotes.nth(i).locator('blockquote').innerText()).replace(/^“|”$/g, '')
+    await press(seeConvo(page, i))
+    await expect(dialog(page)).toBeVisible()
+    await expect(dialog(page).locator('[data-hit]')).toContainText(quote)
+    await page.keyboard.press('Escape')
+    await expect(dialog(page)).toHaveCount(0)
+    await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'hits')
+  }
 })
 
 test('Escape closes it and stays on the slide; keys never flip the page underneath', async ({ page }) => {

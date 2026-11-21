@@ -52,3 +52,22 @@ it('matches the scripted scenario', () => {
   expect(range.last).toBe(toAppleNs(new Date('2026-03-06T01:14:00Z')))
   db.close()
 })
+
+it('with textingStyles, adds four texts after each of Riley\'s notes and turns Jordan\'s nightly text into a paragraph', () => {
+  const plain = makeFakeDb(fs.mkdtempSync(path.join(dir, 'plain-')))
+  const styled = makeFakeDb(fs.mkdtempSync(path.join(dir, 'styled-')), { textingStyles: true })
+  const query = (fake: { path: string; groupChatId: number }, sql: string) => {
+    const db = new Database(fake.path, { readonly: true })
+    try {
+      return db.prepare(sql).all(fake.groupChatId) as Record<string, number | string>[]
+    } finally {
+      db.close()
+    }
+  }
+  const count = `SELECT COUNT(*) AS n FROM chat_message_join WHERE chat_id = ?`
+  expect(Number(query(styled, count)[0]!.n)).toBe(Number(query(plain, count)[0]!.n) + 24)
+  const jordan = `SELECT m.attributedBody AS body FROM message m JOIN chat_message_join j ON j.message_id = m.ROWID
+    JOIN handle h ON h.ROWID = m.handle_id WHERE j.chat_id = ? AND h.id = '${FAKE_PEOPLE.jordan.handle}' AND m.attributedBody IS NOT NULL`
+  const lengths = (fake: { path: string; groupChatId: number }) => query(fake, jordan).map((r) => (r.body as unknown as Buffer).length)
+  expect(Math.min(...lengths(styled))).toBeGreaterThan(Math.max(...lengths(plain)))
+})

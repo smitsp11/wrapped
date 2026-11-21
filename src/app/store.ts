@@ -8,7 +8,7 @@ import type { Wrap } from '../types'
 /** Everything the app keeps: the program, saved wraps and the consent marker. */
 export const APP_DIR = path.join(os.homedir(), '.imessage-wrapped')
 const CONSENT_VERSION = '1'
-const SAFE_ID = /^[a-z0-9-]+$/
+export const SAFE_ID = /^[a-z0-9-]+$/
 
 export type SavedWrap = { id: string; title: string; mode: Wrap['mode']; savedAt: Date }
 

@@ -1,10 +1,10 @@
 {
   "rewrites": [
     { "source": "/", "has": [{ "type": "header", "key": "user-agent", "value": { "pre": "curl/" } }], "destination": "/install.sh" },
-    { "source": "/", "destination": "/home.html" }
+    { "source": "/", "destination": "/home.html" },
+    { "source": "/version.json", "destination": "/api/c" }
   ],
   "headers": [
-    { "source": "/install.sh", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }] },
-    { "source": "/version.json", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }] }
+    { "source": "/install.sh", "headers": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }] }
   ]
 }

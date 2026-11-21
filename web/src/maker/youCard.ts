@@ -1,11 +1,19 @@
 import { formatMinutes } from '../../../src/format'
 import type { Wrap } from '../../../src/types'
+import { firstName } from '../../../src/wrap/names'
 import { type Personality, personalityFor } from '../../../src/wrap/personality'
 import { HAND, fitText, fontFor, splitTitle } from './canvasText'
+import {
+  FOOTER, HEIGHT, INK, MUTED, ORANGE, PAPER, PINK, RED, WIDTH,
+  drawFooter, drawGrain, loadFonts, paperCard, rotated, tape, wrapLines,
+} from './canvasPaper'
+
+export { HEIGHT, WIDTH, wrapLines }
 
 /**
  * The personal share card, "my 2026 in texts": your personality and your own numbers, nothing else.
- * It never holds anyone else's name, a chat title, a quote or a word you texted, so it's safe to post anywhere.
+ * The one name it holds is the first name of the person you texted most days in a row (see `streak`); it never holds
+ * a full name, a phone number or email, a chat title, a quote or a word you texted.
  * A field the wrap doesn't have is left out rather than guessed.
  */
 export type YouCard = {
@@ -18,8 +26,12 @@ export type YouCard = {
   peakHour?: string
   /** how long you typically (median) take to join a conversation someone else started, e.g. "4 min" */
   typicalReply?: string
-  /** days in a row with at least one message */
-  longestStreakDays?: number
+  /**
+   * Your longest streak: the most days in a row texting one person 1:1, and their first name (`with`). When the wrap
+   * has no such streak (an older link, or under MIN_STREAK_DAYS) or only a masked number for them, the most days in a
+   * row with any message, and no name.
+   */
+  streak?: { days: number; with?: string }
   topEmoji?: string
   /** titles of the awards you won, e.g. "Double Texter" */
   awards: string[]
@@ -53,7 +65,15 @@ export function youCardFrom(solo: Wrap): YouCard {
     card.typicalReply = formatMinutes(median)
   }
 
-  if (solo.timing.longestStreakDays >= MIN_STREAK_DAYS) card.longestStreakDays = solo.timing.longestStreakDays
+  const withName = solo.personStreak && Object.hasOwn(solo.people, solo.personStreak.personId)
+    ? firstName(solo.people[solo.personStreak.personId]!)
+    : ''
+  // A masked number ("+1 ••• ••• 0101") isn't a name to put on a card you post.
+  if (solo.personStreak && solo.personStreak.days >= MIN_STREAK_DAYS && withName && !withName.includes('•')) {
+    card.streak = { days: solo.personStreak.days, with: withName }
+  } else if (solo.timing.longestStreakDays >= MIN_STREAK_DAYS) {
+    card.streak = { days: solo.timing.longestStreakDays }
+  }
 
   const emoji = solo.words.topEmoji[0]?.emoji
   if (emoji) card.topEmoji = emoji
@@ -62,40 +82,47 @@ export function youCardFrom(solo: Wrap): YouCard {
 
 export type CardStat = { value: string; label: string }
 
+/**
+ * The group summary card, the last page of a group wrap: the chat's name, its total, its top word and a few award
+ * winners, drawn like the personal card. Its data comes from groupCardFrom (web/src/summary.ts).
+ */
+export type GroupCard = {
+  year: string
+  /** the chat's name */
+  title: string
+  /** "Jan 1 → Nov 21" */
+  period: string
+  messages: number
+  /** the top word or phrase, as on the vocabulary page */
+  topWord?: string
+  topEmoji?: string
+  /** up to three, e.g. { title: 'Main Character', winner: 'Alex Chen' } */
+  awards: { title: string; winner: string }[]
+}
+
+/** The group card's taped notes: the total, then the top word when there is one. */
+export function groupCardStats(card: GroupCard): CardStat[] {
+  const stats: CardStat[] = [{ value: card.messages.toLocaleString('en-US'), label: card.messages === 1 ? 'message' : 'messages' }]
+  if (card.topWord) stats.push({ value: `“${card.topWord}”`, label: 'top word' })
+  return stats
+}
+
+/** "★ Main Character · Alex Chen" */
+export function groupAwardChip(award: GroupCard['awards'][number]): string {
+  return `${award.title} · ${award.winner}`
+}
+
 /** The taped notes, in order: texts sent, peak hour, average reply, streak (whichever the card has). */
 export function cardStats(card: YouCard): CardStat[] {
   const stats: CardStat[] = [{ value: card.textsSent.toLocaleString('en-US'), label: 'texts sent' }]
   if (card.peakHour) stats.push({ value: card.peakHour, label: 'peak hour' })
   if (card.typicalReply) stats.push({ value: card.typicalReply, label: 'average reply' })
-  if (card.longestStreakDays) {
-    const days = card.longestStreakDays.toLocaleString('en-US')
-    stats.push({ value: `${days} days`, label: 'longest streak' })
+  if (card.streak) {
+    const days = card.streak.days.toLocaleString('en-US')
+    stats.push({ value: `${days} days`, label: card.streak.with ? `streak w ${card.streak.with}` : 'longest streak' })
   }
   return stats
 }
-
-/**
- * Splits text into lines no wider than maxWidth, at spaces, using the font already set on ctx.
- * A single word wider than maxWidth gets a line to itself.
- */
-export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const lines: string[] = []
-  let line = ''
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const next = line ? `${line} ${word}` : word
-    if (line && ctx.measureText(next).width > maxWidth) {
-      lines.push(line)
-      line = word
-    } else {
-      line = next
-    }
-  }
-  if (line) lines.push(line)
-  return lines
-}
-
-export const WIDTH = 1080
-export const HEIGHT = 1920
 
 const NOTE_WIDTH = 440
 const NOTE_HEIGHT = 190
@@ -115,55 +142,11 @@ export function notePositions(count: number): { x: number; y: number }[] {
   return positions
 }
 
-const PAPER = '#F6EEDF'
-const INK = '#2B2118'
-const MUTED = '#5C4A3A'
-const ORANGE = '#C2410C'
-const RED = '#BE123C'
-const PINK = '#FDE2E4'
-const CARD = '#FFFFFF'
-const TAPE = 'rgba(255, 214, 102, 0.75)'
-const SHADOW = 'rgba(43, 33, 24, 0.15)'
 const NOTE_INKS = ['#C2410C', '#1D4ED8', '#15803D', '#7E22CE']
-const FOOTER = 'wrapped.smitpatel.xyz'
-
-/** Waits until the card's fonts are loaded for this text, so the canvas draws with them. If they can't load, it uses the system font. */
-async function loadFonts(card: YouCard): Promise<void> {
-  if (typeof document === 'undefined' || !document.fonts) return
+/** Waits until the card's fonts are loaded for its text, so the canvas draws with them. */
+function loadCardFonts(card: YouCard): Promise<void> {
   const stats = cardStats(card).flatMap((s) => [s.value, s.label])
-  const text = [`my ${card.year} in texts`, card.personality.name, card.personality.line, ...stats, ...card.awards, FOOTER].join(' ')
-  const faces = ['500 20px "Bricolage Grotesque"', '800 20px "Bricolage Grotesque"', '700 20px Caveat']
-  try {
-    await Promise.all(faces.map((face) => document.fonts.load(face, text)))
-  } catch {
-    // Drawn with system-ui instead.
-  }
-}
-
-/** Runs `draw` with the canvas turned by `degrees` around (x, y), then turns it back. */
-function rotated(ctx: CanvasRenderingContext2D, degrees: number, x: number, y: number, draw: () => void): void {
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.rotate((degrees * Math.PI) / 180)
-  ctx.translate(-x, -y)
-  draw()
-  ctx.restore()
-}
-
-/** A strip of tape centred on (cx, cy). */
-function tape(ctx: CanvasRenderingContext2D, cx: number, cy: number, width: number, degrees: number): void {
-  rotated(ctx, degrees, cx, cy, () => {
-    ctx.fillStyle = TAPE
-    ctx.fillRect(cx - width / 2, cy - 22, width, 44)
-  })
-}
-
-/** A white card with a soft shadow under it. */
-function paperCard(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, fill = CARD): void {
-  ctx.fillStyle = SHADOW
-  ctx.fillRect(x + 3, y + 6, width, height)
-  ctx.fillStyle = fill
-  ctx.fillRect(x, y, width, height)
+  return loadFonts([`my ${card.year} in texts`, card.personality.name, card.personality.line, ...stats, ...card.awards, FOOTER].join(' '))
 }
 
 /**
@@ -171,16 +154,16 @@ function paperCard(ctx: CanvasRenderingContext2D, x: number, y: number, width: n
  * a taped polaroid with your personality, a CERTIFIED stamp, taped stat notes, award chips and the site in the footer.
  */
 export async function drawYouCard(canvas: HTMLCanvasElement, card: YouCard): Promise<void> {
-  await loadFonts(card)
+  await loadCardFonts(card)
   canvas.width = WIDTH
   canvas.height = HEIGHT
   const ctx = canvas.getContext('2d')!
   ctx.fillStyle = PAPER
   ctx.fillRect(0, 0, WIDTH, HEIGHT)
 
-  drawHeading(ctx, card.year)
+  drawHeading(ctx, [`my ${card.year}`, 'in texts'])
   if (card.topEmoji) drawPostage(ctx, card.topEmoji, card.year)
-  drawPolaroid(ctx, card.personality)
+  drawPolaroid(ctx, 'MY TEXTING PERSONALITY', card.personality.name, card.personality.line)
   const stats = cardStats(card)
   notePositions(stats.length).forEach((at, i) => drawNote(ctx, stats[i]!, at.x, at.y, i))
   drawCertified(ctx, card.year)
@@ -189,20 +172,47 @@ export async function drawYouCard(canvas: HTMLCanvasElement, card: YouCard): Pro
   drawGrain(ctx)
 }
 
-/** "my 2026" / "in texts", handwritten in two lines at the top left. */
-function drawHeading(ctx: CanvasRenderingContext2D, year: string): void {
+/** Where the group card's award chips start: under its one row of notes, one award to a row. */
+const GROUP_AWARDS_TOP = 1420
+
+/**
+ * Draws the 1080×1920 group summary card, the same scrapbook as the personal one: "our 2026 in texts", the top emoji
+ * on a stamp, a polaroid with the chat's name, notes with the total and top word, and the award winners as chips.
+ */
+export async function drawGroupCard(canvas: HTMLCanvasElement, card: GroupCard): Promise<void> {
+  const stats = groupCardStats(card)
+  const chips = card.awards.map(groupAwardChip)
+  await loadFonts([`our ${card.year} in texts OUR GROUP CHAT`, card.title, card.period, ...stats.flatMap((s) => [s.value, s.label]), ...chips, FOOTER].join(' '))
+  canvas.width = WIDTH
+  canvas.height = HEIGHT
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = PAPER
+  ctx.fillRect(0, 0, WIDTH, HEIGHT)
+
+  drawHeading(ctx, [`our ${card.year}`, 'in texts'])
+  if (card.topEmoji) drawPostage(ctx, card.topEmoji, card.year)
+  drawPolaroid(ctx, 'OUR GROUP CHAT', card.title, card.period)
+  notePositions(stats.length).forEach((at, i) => drawNote(ctx, stats[i]!, at.x, at.y, i))
+  drawCertified(ctx, card.year)
+  drawAwards(ctx, chips, GROUP_AWARDS_TOP, 3)
+  drawFooter(ctx)
+  drawGrain(ctx)
+}
+
+/** Two lines, like "my 2026" / "in texts", handwritten at the top left. */
+function drawHeading(ctx: CanvasRenderingContext2D, lines: string[]): void {
   const left = 84
   rotated(ctx, -4, left, 260, () => {
     ctx.fillStyle = ORANGE
     ctx.textBaseline = 'alphabetic'
-    ;[`my ${year}`, 'in texts'].forEach((line, i) => {
+    lines.forEach((line, i) => {
       const fitted = fitText(ctx, line, 700, 160, 640, 80, HAND)
       ctx.fillText(fitted.text, left, 270 + i * 130)
     })
   })
 }
 
-/** A perforated postage stamp holding the top emoji, with a round postmark over its corner. */
+/** A perforated postage stamp holding the top emoji under a small "TOP EMOJI", with a round postmark over its corner. */
 function drawPostage(ctx: CanvasRenderingContext2D, emoji: string, year: string): void {
   const x = 790
   const y = 120
@@ -231,7 +241,7 @@ function drawPostage(ctx: CanvasRenderingContext2D, emoji: string, year: string)
     ctx.fillRect(x + 22, y + 22, width - 44, height - 44)
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = MUTED
+    ctx.fillStyle = ORANGE
     ctx.font = fontFor(800, 20)
     ctx.fillText('TOP EMOJI', x + width / 2, y + 48)
     ctx.font = fontFor(500, 104)
@@ -272,8 +282,8 @@ function drawPostage(ctx: CanvasRenderingContext2D, emoji: string, year: string)
   ctx.restore()
 }
 
-/** The polaroid: the personality name on the dark "photo", its line handwritten underneath. */
-function drawPolaroid(ctx: CanvasRenderingContext2D, personality: Personality): void {
+/** The polaroid: a small label and a big name on the dark "photo", and a line handwritten underneath. */
+function drawPolaroid(ctx: CanvasRenderingContext2D, label: string, name: string, line: string): void {
   const x = 150
   const y = 450
   const width = 780
@@ -291,13 +301,13 @@ function drawPolaroid(ctx: CanvasRenderingContext2D, personality: Personality): 
     ctx.fillStyle = PAPER
     ctx.textBaseline = 'top'
     ctx.font = fontFor(500, 26)
-    ctx.fillText('MY TEXTING PERSONALITY', cx, y + inset + 40)
+    ctx.fillText(label, cx, y + inset + 40)
 
     // One line if it fits at full size; otherwise two, split at a space, both the same size.
     const full = 124
     const maxWidth = photoWidth - 80
     ctx.font = fontFor(800, full)
-    const rows = ctx.measureText(personality.name).width <= maxWidth ? [personality.name] : splitTitle(personality.name)
+    const rows = ctx.measureText(name).width <= maxWidth ? [name] : splitTitle(name)
     const px = Math.min(...rows.map((row) => fitText(ctx, row, 800, full, maxWidth, 56).px))
     const middle = y + inset + photoHeight / 2 + 24
     ctx.textBaseline = 'middle'
@@ -313,14 +323,14 @@ function drawPolaroid(ctx: CanvasRenderingContext2D, personality: Personality): 
     const captionCentre = x + inset + captionWidth / 2
     let captionPx = 58
     ctx.font = fontFor(700, captionPx, HAND)
-    while (captionPx > 40 && wrapLines(ctx, personality.line, captionWidth).length > 2) {
+    while (captionPx > 40 && wrapLines(ctx, line, captionWidth).length > 2) {
       captionPx -= 4
       ctx.font = fontFor(700, captionPx, HAND)
     }
-    const lines = wrapLines(ctx, personality.line, captionWidth).slice(0, 2)
+    const lines = wrapLines(ctx, line, captionWidth).slice(0, 2)
     const captionMiddle = y + inset + photoHeight + (height - inset - photoHeight) / 2
-    lines.forEach((line, i) => {
-      const fitted = fitText(ctx, line, 700, captionPx, captionWidth, 32, HAND)
+    lines.forEach((text, i) => {
+      const fitted = fitText(ctx, text, 700, captionPx, captionWidth, 32, HAND)
       ctx.fillText(fitted.text, captionCentre, captionMiddle + (i - (lines.length - 1) / 2) * captionPx * 1.05)
     })
     ctx.textAlign = 'left'
@@ -377,14 +387,14 @@ function drawNote(ctx: CanvasRenderingContext2D, stat: CardStat, x: number, y: n
   tape(ctx, x + NOTE_WIDTH / 2, y, 130, i % 2 ? 4 : -4)
 }
 
-/** Your awards as white chips, a star then the title, in up to two rows; any that don't fit are left off. */
-function drawAwards(ctx: CanvasRenderingContext2D, awards: string[]): void {
+/** Awards as white chips, a star then the text, in up to `maxRows` rows from `top`; any that don't fit are left off. */
+function drawAwards(ctx: CanvasRenderingContext2D, awards: string[], top = 1600, maxRows = 2): void {
   const left = 80
   const right = WIDTH - 80
   const height = 68
   const gap = 18
   let x = left
-  let y = 1600
+  let y = top
   awards.forEach((title, i) => {
     const text = `★ ${title}`
     const fitted = fitText(ctx, text, 700, 44, right - left - 40, 30, HAND)
@@ -393,7 +403,7 @@ function drawAwards(ctx: CanvasRenderingContext2D, awards: string[]): void {
       x = left
       y += height + 16
     }
-    if (y > 1600 + height + 16) return
+    if (y > top + (maxRows - 1) * (height + 16)) return
     rotated(ctx, i % 2 ? 1.5 : -1.5, x + width / 2, y + height / 2, () => {
       paperCard(ctx, x, y, width, height)
       ctx.fillStyle = i % 2 ? INK : RED
@@ -405,31 +415,4 @@ function drawAwards(ctx: CanvasRenderingContext2D, awards: string[]): void {
   })
 }
 
-/** A dashed rule and the site, so anyone who sees the card knows where to make one. */
-function drawFooter(ctx: CanvasRenderingContext2D): void {
-  ctx.strokeStyle = 'rgba(43, 33, 24, 0.3)'
-  ctx.lineWidth = 3
-  ctx.setLineDash([14, 12])
-  ctx.beginPath()
-  ctx.moveTo(80, 1800)
-  ctx.lineTo(WIDTH - 80, 1800)
-  ctx.stroke()
-  ctx.setLineDash([])
-  ctx.fillStyle = MUTED
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'alphabetic'
-  ctx.font = fontFor(800, 36)
-  ctx.fillText(FOOTER, WIDTH / 2, 1862)
-  ctx.textAlign = 'left'
-}
 
-/** A light paper grain over everything: tiny dots from a fixed seed, so every card looks the same. */
-function drawGrain(ctx: CanvasRenderingContext2D): void {
-  let seed = 2026
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296
-    return seed / 4294967296
-  }
-  ctx.fillStyle = 'rgba(43, 33, 24, 0.05)'
-  for (let i = 0; i < 14000; i++) ctx.fillRect(random() * WIDTH, random() * HEIGHT, 2, 2)
-}

@@ -40,13 +40,15 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Asks the website for the newest version (site/version.json). Never throws and gives up after 1.5 s:
- * offline, a slow network or an odd answer all just mean no notice. WRAPPED_NO_UPDATE_CHECK=1 skips it.
+ * Asks the website for the newest version (/version.json, answered by site/api/c.ts, which also adds one to the
+ * day's anonymous launch tally). Never throws and gives up after 1.5 s: offline, a slow network or an odd answer
+ * all just mean no notice. WRAPPED_NO_UPDATE_CHECK=1 skips it; WRAPPED_NO_COUNT=1 asks the site not to count it.
  */
 export async function checkForUpdate(site: string, current: string, env = process.env, get: typeof fetch = fetch): Promise<Update | null> {
   if (env.WRAPPED_NO_UPDATE_CHECK === '1') return null
   try {
-    const res = await get(`${site}/version.json`, { signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) })
+    const url = `${site}/version.json${env.WRAPPED_NO_COUNT === '1' ? '?nocount=1' : ''}`
+    const res = await get(url, { signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) })
     if (!res.ok) return null
     const body = (await res.json()) as { version?: unknown }
     if (typeof body.version !== 'string') return null
@@ -60,18 +62,19 @@ export async function checkForUpdate(site: string, current: string, env = proces
  * `wrapped update`: runs the install line again (curl -fsSL <site> | sh). The installer replaces the program
  * and keeps its one PATH line. WRAPPED_NO_RUN=1 stops it from starting the new program afterwards.
  * Resolves with the exit code: curl's if the download failed, otherwise the installer's.
+ *
+ * One shell does both steps, with the installer saved to a temp file in between: the compiled program runs on Bun,
+ * which can't hand one child's output stream to another as its stdin.
  */
+const UPDATE_SCRIPT =
+  'tmp=$(mktemp) || exit 1; curl -fsSL "$1" -o "$tmp"; code=$?; [ $code -eq 0 ] && { sh "$tmp"; code=$?; }; rm -f "$tmp"; exit $code'
+
 export async function runUpdate(site: string, env: NodeJS.ProcessEnv = process.env): Promise<number> {
-  const curl = spawn('curl', ['-fsSL', site], { stdio: ['ignore', 'pipe', 'inherit'] })
-  const sh = spawn('sh', [], { stdio: [curl.stdout, 'inherit', 'inherit'], env: { ...env, WRAPPED_NO_RUN: '1' } })
-  const exitCode = (child: ReturnType<typeof spawn>) =>
-    new Promise<number>((resolve) => {
-      child.on('error', () => resolve(1))
-      // 'exit', not 'close': curl's output goes straight to sh, so this process never sees that pipe close.
-      child.on('exit', (code) => resolve(code ?? 1))
-    })
-  const [curlCode, shCode] = await Promise.all([exitCode(curl), exitCode(sh)])
-  return curlCode !== 0 ? curlCode : shCode
+  const child = spawn('/bin/sh', ['-c', UPDATE_SCRIPT, 'sh', site], { stdio: 'inherit', env: { ...env, WRAPPED_NO_RUN: '1' } })
+  return new Promise<number>((resolve) => {
+    child.on('error', () => resolve(1))
+    child.on('exit', (code) => resolve(code ?? 1))
+  })
 }
 
 /** The version of the program the installer put in ~/.imessage-wrapped/bin, or null if it can't say. */

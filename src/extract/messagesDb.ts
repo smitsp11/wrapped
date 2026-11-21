@@ -46,6 +46,22 @@ function attachmentTypeSql(columns: Set<string>, hasJoin: boolean): string {
       WHERE ma.message_id = m.ROWID ORDER BY a.ROWID LIMIT 1) END`
 }
 
+/**
+ * The first attachment of the message with this guid: where Messages keeps the file and its type. Only the local app's
+ * preview asks for it, for the photos in a conversation; the name never leaves this Mac. NULL when the database has
+ * no attachment tables.
+ */
+function attachmentFileSql(columns: Set<string>, hasJoin: boolean): string | null {
+  if (!hasJoin || !columns.has('filename') || !columns.has('mime_type') || !columns.has('uti')) return null
+  return `SELECT a.filename AS filename, COALESCE(NULLIF(a.mime_type, ''), a.uti) AS type
+    FROM message m JOIN message_attachment_join ma ON ma.message_id = m.ROWID
+    JOIN attachment a ON a.ROWID = ma.attachment_id
+    WHERE m.guid = ? ORDER BY a.ROWID LIMIT 1`
+}
+
+/** A message's first attachment: its path as Messages wrote it (often starting with "~/"), and its MIME type or UTI. */
+export type AttachmentFile = { filename: string; type: string | null }
+
 export type RowQuery = { chatIds?: number[]; from: Date; to: Date }
 
 /** Read-only access to a copy of the Messages database. */
@@ -56,6 +72,7 @@ export class MessagesDb {
     private readonly hasEmoji: boolean,
     private readonly chatsQuery: string,
     private readonly attachmentTypeQuery: string,
+    private readonly attachmentFileQuery: string | null,
   ) {}
 
   static open(openSqlite: OpenSqlite, sourcePath: string = DEFAULT_CHAT_DB): MessagesDb {
@@ -78,7 +95,9 @@ export class MessagesDb {
       db.all(`${chatsQuery} LIMIT 0`) // fails here, not later, if this isn't a Messages database
       const attachmentColumns = new Set(db.all<{ name: string }>('PRAGMA table_info(attachment)').map((c) => c.name))
       const hasJoin = db.all('PRAGMA table_info(message_attachment_join)').length > 0
-      return new MessagesDb(db, copy.dir, hasEmoji, chatsQuery, attachmentTypeSql(attachmentColumns, hasJoin))
+      return new MessagesDb(
+        db, copy.dir, hasEmoji, chatsQuery, attachmentTypeSql(attachmentColumns, hasJoin), attachmentFileSql(attachmentColumns, hasJoin),
+      )
     } catch (err) {
       try {
         db?.close()
@@ -158,25 +177,39 @@ export class MessagesDb {
 
   /**
    * The phone numbers and emails you send from, most used first, for finding your own contact card.
-   * Messages notes them on your sent messages: destination_caller_id ("+14165550100") and account
-   * ("E:me@icloud.com", "P:+1416…"); older databases may lack either column. Handles only, never text.
+   * Messages notes them on your sent messages, destination_caller_id ("+14165550100") and account
+   * ("E:me@icloud.com", "P:+1416…"), and on each chat: the account it's signed in with (account_login) and
+   * the handle you last wrote from (last_addressed_handle). The chat ones count even when no message in
+   * the database has them. Older databases may lack any of these columns. Handles only, never text.
    */
   ownHandles(): string[] {
-    const columns = new Set(this.db.all<{ name: string }>('PRAGMA table_info(message)').map((c) => c.name))
+    const columnsOf = (table: string) => new Set(this.db.all<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name))
+    const message = columnsOf('message')
+    const chat = columnsOf('chat')
+    const sources = [
+      ...['destination_caller_id', 'account'].filter((c) => message.has(c)).map((c) => ({ table: 'message', column: c, mine: 'is_from_me = 1 AND' })),
+      ...['account_login', 'last_addressed_handle'].filter((c) => chat.has(c)).map((c) => ({ table: 'chat', column: c, mine: '' })),
+    ]
     const counts = new Map<string, number>()
-    for (const column of ['destination_caller_id', 'account']) {
-      if (!columns.has(column)) continue
+    for (const { table, column, mine } of sources) {
       const rows = this.db.all<{ handle: string; n: number }>(
-        `SELECT ${column} AS handle, COUNT(*) AS n FROM message
-         WHERE is_from_me = 1 AND ${column} IS NOT NULL AND ${column} != ''
+        `SELECT ${column} AS handle, COUNT(*) AS n FROM ${table}
+         WHERE ${mine} ${column} IS NOT NULL AND ${column} != ''
          GROUP BY ${column} ORDER BY n DESC LIMIT 5`,
       )
       for (const row of rows) {
-        const handle = row.handle.replace(/^[a-z]:/i, '') // "E:" / "P:" say which kind it is
-        counts.set(handle, (counts.get(handle) ?? 0) + row.n)
+        const handle = row.handle.replace(/^[a-z]:/i, '').trim() // "E:" / "P:" say which kind it is
+        if (handle) counts.set(handle, (counts.get(handle) ?? 0) + row.n)
       }
     }
     return [...counts].sort((a, b) => b[1] - a[1]).map(([handle]) => handle)
+  }
+
+  /** The first attachment of the message with this guid, or null when it has none (or no file name). */
+  attachmentFile(messageGuid: string): AttachmentFile | null {
+    if (!this.attachmentFileQuery) return null
+    const [row] = this.db.all<{ filename: string | null; type: string | null }>(this.attachmentFileQuery, messageGuid)
+    return row?.filename ? { filename: row.filename, type: row.type } : null
   }
 
   close(): void {

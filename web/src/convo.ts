@@ -1,4 +1,4 @@
-import type { ConvoMessage, Hit } from '../../src/stats/greatestHits'
+import type { Convo, ConvoMessage, Hit } from '../../src/stats/greatestHits'
 import type { Wrap } from '../../src/types'
 import { firstName } from '../../src/wrap/names'
 import { escapeHtml } from './slides'
@@ -8,6 +8,25 @@ import { escapeHtml } from './slides'
  * the page. The hit is lifted out of the thread (bigger, raised, its reactions floating above it) while the rest stays
  * visible behind it, dimmed. A tap settles it so the whole thread reads and scrolls.
  */
+
+/**
+ * The maker's preview on your own Mac only: the real photo for message `message` in the conversation behind the link's
+ * quote `hit`, as an image URL once it has loaded, or null to keep "📷 Photo".
+ */
+export type MediaFor = (hit: number, message: number) => Promise<string> | null
+
+/**
+ * What the maker's preview adds, on your own Mac only: your photos. The maker sets it on its own window before it
+ * loads the preview frame, which reads it from its parent for the link `packed` only (main.ts). The public site never
+ * sets it, so a shared link shows "📷 Photo" placeholders.
+ */
+export type LocalPreview = { packed: string; mediaFor: MediaFor | null }
+
+declare global {
+  interface Window {
+    wrappedLocalPreview?: LocalPreview
+  }
+}
 
 const MEDIA_LABELS: Record<NonNullable<ConvoMessage['media']>, string> = {
   photo: '📷 Photo',
@@ -21,7 +40,9 @@ const LIFT_DELAY_MS = 450
 /** A swipe down at least this far closes the conversation. */
 const SWIPE_CLOSE_PX = 90
 
-function personFirstName(wrap: Wrap, id: string): string {
+/** A My year conversation names the senders who aren't among the wrap's people itself. */
+function personFirstName(wrap: Wrap, convo: Convo, id: string): string {
+  if (convo.people && Object.hasOwn(convo.people, id)) return firstName(convo.people[id]!)
   return Object.hasOwn(wrap.people, id) ? firstName(wrap.people[id]!) : 'Someone'
 }
 
@@ -43,8 +64,12 @@ export function reactionSummary(m: ConvoMessage): string {
   return parts.filter(Boolean).join(' ')
 }
 
-/** The dialog's markup. Pure (no DOM), so it's unit-tested. */
-export function convoHtml(wrap: Wrap, hit: Hit): string {
+/**
+ * The dialog's markup. Pure (no DOM), so it's unit-tested. `photos` (the maker's preview only): the messages that get a
+ * photo frame, in place of "📷 Photo" or, for a text sent with a photo, above the text like Messages shows it.
+ * openConvo puts the image in the frame once it loads.
+ */
+export function convoHtml(wrap: Wrap, hit: Hit, photos: ReadonlySet<number> = new Set()): string {
   const convo = hit.conversation
   if (!convo) return ''
   const items: string[] = []
@@ -57,12 +82,16 @@ export function convoHtml(wrap: Wrap, hit: Hit): string {
     const side = m.senderId === 'me' ? 'mine' : 'theirs'
     const isHit = i === convo.hit
     const reactions = reactionSummary(m)
+    const withPhoto = photos.has(i) && (m.media === 'photo' || !m.media)
+    const frame = `<div class="bubble photo${m.media ? '' : ' above'}" data-photo="${i}"><span class="photo-label">${MEDIA_LABELS.photo}</span></div>`
     const body = m.media
-      ? `<p class="bubble media">${MEDIA_LABELS[m.media]}</p>`
-      : `<p class="bubble">${escapeHtml(m.text)}</p>`
+      ? withPhoto
+        ? frame
+        : `<p class="bubble media">${MEDIA_LABELS[m.media]}</p>`
+      : `${withPhoto ? frame : ''}<p class="bubble">${escapeHtml(m.text)}</p>`
     items.push(
       `<li class="msg ${side}${isHit ? ' hit' : ''}"${isHit ? ' data-hit' : ''}>` +
-        (runStarts ? `<span class="who">${escapeHtml(personFirstName(wrap, m.senderId))}</span>` : '') +
+        (runStarts ? `<span class="who">${escapeHtml(personFirstName(wrap, convo, m.senderId))}</span>` : '') +
         `<div class="bubble-wrap">${body}${reactions ? `<span class="tapback">${escapeHtml(reactions)}</span>` : ''}</div></li>`,
     )
   })
@@ -74,13 +103,41 @@ export function convoHtml(wrap: Wrap, hit: Hit): string {
       <h2 class="convo-title" id="convo-title">what was the convo?</h2>
       <div class="shot">
         <header class="shot-top">
-          <b>${escapeHtml(wrap.title)}</b>
+          <b>${escapeHtml(convo.title ?? wrap.title)}</b>
           <time datetime="${escapeHtml(first.sentAt)}">${escapeHtml(dayAndTime(first.sentAt))}</time>
         </header>
         <ol class="thread" tabindex="0" aria-label="Messages">${items.join('')}</ol>
       </div>
       <p class="convo-hint" aria-hidden="true"><span class="when-lifted">tap to read the whole thread</span><span class="when-settled">tap the quote to lift it again</span></p>
     </div>`
+}
+
+/**
+ * Puts the photo in its frame once it has loaded. The frame keeps its size the whole time, so the thread doesn't jump.
+ * If it can't be loaded or shown, the frame becomes the usual "📷 Photo", or goes away above a text.
+ */
+function showPhoto(frame: HTMLElement, photo: Promise<string>): void {
+  const placeholder = () => {
+    if (frame.classList.contains('above')) {
+      frame.remove()
+      return
+    }
+    const p = document.createElement('p')
+    p.className = 'bubble media'
+    p.textContent = MEDIA_LABELS.photo
+    frame.replaceWith(p)
+  }
+  photo.then((src) => {
+    const img = document.createElement('img')
+    img.alt = 'Photo'
+    img.loading = 'lazy'
+    img.decoding = 'async'
+    img.draggable = false
+    img.onload = () => frame.classList.add('loaded')
+    img.onerror = placeholder
+    img.src = src
+    frame.append(img)
+  }, placeholder)
 }
 
 let open: { close: () => void } | null = null
@@ -97,18 +154,31 @@ export function closeConvo(): void {
 /**
  * Opens the conversation for `hit` over the slides. `app` is made inert while it's open, so focus and taps stay in the
  * dialog; `opener` gets focus back when it closes. Escape is handled with the story's other keys, in main.ts.
+ * `photoFor` (the maker's preview only, see MediaFor) gives a message sent with a photo its real photo.
  */
-export function openConvo(wrap: Wrap, hit: Hit, app: HTMLElement, opener: HTMLElement): void {
+export function openConvo(
+  wrap: Wrap,
+  hit: Hit,
+  app: HTMLElement,
+  opener: HTMLElement,
+  photoFor?: (message: number) => Promise<string> | null,
+): void {
   closeConvo()
+  const photos = new Map<number, Promise<string>>()
+  hit.conversation?.messages.forEach((m, i) => {
+    const photo = m.media === 'photo' || !m.media ? photoFor?.(i) : null
+    if (photo) photos.set(i, photo)
+  })
   const dialog = document.createElement('div')
   dialog.className = 'convo'
   dialog.setAttribute('role', 'dialog')
   dialog.setAttribute('aria-modal', 'true')
   dialog.setAttribute('aria-labelledby', 'convo-title')
   dialog.dataset.testid = 'convo'
-  dialog.innerHTML = convoHtml(wrap, hit)
+  dialog.innerHTML = convoHtml(wrap, hit, new Set(photos.keys()))
   document.body.append(dialog)
   app.inert = true
+  for (const [i, photo] of photos) showPhoto(dialog.querySelector<HTMLElement>(`[data-photo="${i}"]`)!, photo)
 
   const thread = dialog.querySelector<HTMLElement>('.thread')!
   const lifted = dialog.querySelector<HTMLElement>('[data-hit]')!

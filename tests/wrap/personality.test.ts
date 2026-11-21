@@ -87,8 +87,8 @@ describe('personalityFor', () => {
     ).toBe('yapper')
   })
 
-  it('is The Essayist when your longest message is 1,000+ characters', () => {
-    expect(idFor((w) => (w.words.longestMessage = { senderId: 'me', length: 1000 }))).toBe('essayist')
+  it('is Paragraph Texter when your longest message is 1,000+ characters', () => {
+    expect(idFor((w) => (w.words.longestMessage = { senderId: 'me', length: 1000 }))).toBe('paragraph-texter')
     expect(idFor((w) => (w.words.longestMessage = { senderId: 'me', length: 999 }))).toBe('yapper')
     expect(idFor((w) => (w.words.longestMessage = { senderId: 'p1', length: 5000 }))).toBe('yapper')
     expect(idFor((w) => (w.words.longestMessage = null))).toBe('yapper')

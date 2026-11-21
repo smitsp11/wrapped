@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
-import { withoutContactInfo } from '../../web/src/maker/quotes'
+import { linkHitIndices, withoutContactInfo } from '../../src/share/quotes'
 
 describe('withoutContactInfo', () => {
   const base = makeFakeWrap('group')
@@ -15,5 +15,9 @@ describe('withoutContactInfo', () => {
     expect(withoutContactInfo(wrap)).toEqual({ ...wrap, greatestHits: wrap.greatestHits.slice(1) })
     expect(withoutContactInfo(base)).toEqual(base)
     expect(Object.keys(withoutContactInfo(wrap).words.signatureWordByPerson).length).toBeGreaterThan(0)
+  })
+  it('names the saved quotes the link keeps, by their index in the saved wrap', () => {
+    expect(linkHitIndices(wrap)).toEqual(wrap.greatestHits.slice(1).map((_, i) => i + 1))
+    expect(linkHitIndices(base)).toEqual(base.greatestHits.map((_, i) => i))
   })
 })

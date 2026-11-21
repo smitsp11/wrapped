@@ -2,10 +2,12 @@ import { pickAwards } from '../awards/rules'
 import { EmptyPeriodError } from '../errors'
 import { maskHandle } from '../format'
 import { byCountThenKey, contentMessages, increment } from '../stats/conversation'
-import { greatestHits } from '../stats/greatestHits'
+import { greatestHits, type Convo, type Hit } from '../stats/greatestHits'
+import { dmPartners, personalStats } from '../stats/personal'
 import { reactionStats } from '../stats/reactions'
 import { replyStats } from '../stats/replies'
 import { starterStats } from '../stats/starters'
+import { textingStats } from '../stats/texting'
 import { timingStats } from '../stats/timing'
 import { volumeStats } from '../stats/volume'
 import { type WordCounts, wordStats } from '../stats/words'
@@ -25,9 +27,20 @@ export type BuildOptions = {
   wordBaseline?: WordCounts
   /** names never shown as top or signature words (everyone in Contacts, and you), besides the people in the wrap */
   hiddenNames?: readonly string[]
+  /**
+   * For the maker's local preview: called with each hit's index in the wrap and the messages behind its conversation
+   * (the same order as `conversation.messages`), so the app can find the photos. The wrap is the same either way.
+   */
+  onConversation?: (hit: number, shown: Message[]) => void
+  /** the message total against the same dates a year earlier, already worked out (see lastYear.ts); left out when unknown */
+  vsLastYear?: Wrap['vsLastYear']
+  /** solo mode: the numbers and emails you send from (MessagesDb.ownHandles), so a chat with yourself is never your person */
+  ownHandles?: readonly string[]
 }
 
 const TOP_CHATS = 5
+/** Solo: your greatest hits come only from this many of your busiest group chats. */
+const HIT_GROUP_CHATS = 5
 const SOLO_TOP_PEOPLE = 5
 /** stands in for "everyone outside your top contacts" until ids are assigned; cannot collide with a real handle */
 const OTHERS_HANDLE = '\0others'
@@ -54,6 +67,9 @@ export function buildWrap(all: Message[], options: BuildOptions): Wrap {
   const people: Record<string, string> = {}
   for (const [handle, id] of ids) people[id] = handle === 'me' ? 'You' : handle === OTHERS_HANDLE ? 'Everyone else' : display(handle)
 
+  // Solo: may add people from outside your top contacts, so it comes before anything reads `people`.
+  const yours = solo ? personal(inPeriod, dmPartners(options.chats ?? [], options.ownHandles), ids, people, display) : {}
+
   const volume = volumeStats(messages)
   const timing = timingStats(messages)
   const replies = replyStats(messages)
@@ -61,10 +77,10 @@ export function buildWrap(all: Message[], options: BuildOptions): Wrap {
   const reactions = reactionStats(messages)
 
   // Solo: hits are your own messages, but everyone's reactions count, so rank over all messages with one id per person.
-  // Only a group wrap carries the conversation around each hit: a solo wrap gets posted to stories.
+  // Both kinds carry the conversation around each hit.
   const hits = solo
-    ? greatestHits(relabel(inPeriod, assignPersonIds(inPeriod))).filter((h) => h.senderId === 'me')
-    : greatestHits(messages, { withConversations: true })
+    ? soloHits(inPeriod, ids, display, options.chats ?? [], options.onConversation)
+    : greatestHits(messages, { withConversations: true, onConversation: options.onConversation })
   // "Everyone else" is a sum of many people, so it never competes for awards.
   const awards = pickAwards({ volume, timing, replies, starters, reactions }, options.mode, solo ? [OTHERS_ID] : [])
 
@@ -87,7 +103,105 @@ export function buildWrap(all: Message[], options: BuildOptions): Wrap {
     greatestHits: hits,
     awards,
     topChats: solo ? topChats(messages, options.chats ?? []) : [],
+    // Group only: the solo share card has no room for it, and your style across every chat says less.
+    ...(solo ? {} : { texting: textingStats(messages) }),
+    ...yours,
+    ...(options.vsLastYear ? { vsLastYear: options.vsLastYear } : {}),
   }
+}
+
+/**
+ * Solo: your person each month and your longest streak with one person (see personalStats). Either may be someone
+ * outside your top contacts (big for a month, then gone), so they get the next free id and a name in `people`.
+ */
+function personal(
+  inPeriod: Message[],
+  partners: Map<number, string>,
+  ids: Map<string, string>,
+  people: Record<string, string>,
+  display: (handle: string) => string,
+): Pick<Wrap, 'topPersonByMonth' | 'personStreak'> {
+  const { topPersonByMonth, personStreak } = personalStats(inPeriod, partners)
+  const extra = new Map<string, string>()
+  let next = [...ids.values()].filter((id) => /^p\d+$/.test(id)).length + 1
+  const idFor = (handle: string) => {
+    const known = ids.get(handle) ?? extra.get(handle)
+    if (known) return known
+    const id = `p${next++}`
+    extra.set(handle, id)
+    people[id] = display(handle)
+    return id
+  }
+  const months = topPersonByMonth.map((handle) => (handle === null ? null : idFor(handle)))
+  return {
+    ...(months.some((id) => id !== null) ? { topPersonByMonth: months } : {}),
+    ...(personStreak ? { personStreak: { personId: idFor(personStreak.person), days: personStreak.days, from: personStreak.from } } : {}),
+  }
+}
+
+/**
+ * Your own most-reacted messages, each with the conversation it was sent in. They come only from your
+ * HIT_GROUP_CHATS busiest group chats this year (ranked like the Top chats slide, so a 1:1 chat or a quiet group never
+ * gives one). Ranking gives everyone their own id, so in a conversation your top people get their id in the wrap
+ * (`wrapIds`) and anyone else a new one, named in the conversation's own `people`. Its `title` is the chat's name,
+ * since a solo wrap's title is "Your 2026".
+ */
+function soloHits(
+  inPeriod: Message[],
+  wrapIds: Map<string, string>,
+  display: (handle: string) => string,
+  chats: Chat[],
+  onConversation?: (hit: number, shown: Message[]) => void,
+): Hit[] {
+  const ids = assignPersonIds(inPeriod)
+  const handleOf = new Map([...ids].map(([handle, id]) => [id, handle]))
+  const shownFor = new Map<number, Message[]>()
+  const groups = new Set(chats.filter((c) => c.isGroup).map((c) => c.id))
+  const hitChats = new Set(
+    chatsByMessages(inPeriod)
+      .map(([chatId]) => chatId)
+      .filter((chatId) => groups.has(chatId))
+      .slice(0, HIT_GROUP_CHATS),
+  )
+  // Your own messages in those chats, ranked by the share of their chat who reacted (see greatestHits).
+  const chatSizes = new Map(chats.filter((c) => c.memberIds.length > 0).map((c) => [c.id, c.memberIds.length + 1]))
+  const ranked = greatestHits(relabel(inPeriod.filter((m) => hitChats.has(m.chatId)), ids), {
+    from: 'me',
+    chatSizes,
+    withConversations: true,
+    onConversation: (hit, shown) => shownFor.set(hit, shown),
+  })
+  const topIds = [...wrapIds.values()].filter((id) => /^p\d+$/.test(id)).length
+
+  const inWrapTerms = (convo: Convo, shown: Message[]): Convo => {
+    const people: Record<string, string> = {}
+    const newIds = new Map<string, string>()
+    const idFor = (rankedId: string) => {
+      const handle = handleOf.get(rankedId)!
+      const kept = wrapIds.get(handle)
+      if (kept && kept !== OTHERS_ID) return kept
+      let id = newIds.get(handle)
+      if (!id) {
+        id = `p${topIds + newIds.size + 1}`
+        newIds.set(handle, id)
+        people[id] = display(handle)
+      }
+      return id
+    }
+    const messages = convo.messages.map((m) => ({ ...m, senderId: idFor(m.senderId) }))
+    const chatId = shown[convo.hit]!.chatId
+    const title = chats.find((c) => c.id === chatId)?.name || 'A chat'
+    return { messages, hit: convo.hit, title, ...(newIds.size > 0 ? { people } : {}) }
+  }
+
+  const hits: Hit[] = []
+  ranked.forEach((hit, i) => {
+    if (hit.senderId !== 'me') return
+    const shown = shownFor.get(i)
+    const index = hits.push(hit.conversation && shown ? { ...hit, conversation: inWrapTerms(hit.conversation, shown) } : hit) - 1
+    if (shown) onConversation?.(index, shown)
+  })
+  return hits
 }
 
 function relabel(messages: Message[], ids: Map<string, string>): Message[] {
@@ -129,11 +243,15 @@ function assignPersonIds(messages: Message[]): Map<string, string> {
   return ids
 }
 
-function topChats(messages: Message[], chats: Chat[]): Wrap['topChats'] {
+/** Every chat id with how many messages were sent in it, busiest first; ties go to the lower chat id. */
+function chatsByMessages(messages: Message[]): [chatId: number, messages: number][] {
   const counts = new Map<number, number>()
   for (const m of contentMessages(messages)) counts.set(m.chatId, (counts.get(m.chatId) ?? 0) + 1)
-  return [...counts]
-    .sort(([idA, a], [idB, b]) => b - a || idA - idB)
+  return [...counts].sort(([idA, a], [idB, b]) => b - a || idA - idB)
+}
+
+function topChats(messages: Message[], chats: Chat[]): Wrap['topChats'] {
+  return chatsByMessages(messages)
     .slice(0, TOP_CHATS)
     .map(([chatId, count]) => ({ name: chats.find((c) => c.id === chatId)?.name || 'A chat', messages: count }))
 }

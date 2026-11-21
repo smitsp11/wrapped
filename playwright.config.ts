@@ -7,8 +7,9 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } } },
     // Chromium-based phone, so only the one browser needs installing.
     { name: 'phone', use: { ...devices['Pixel 7'] } },
-    // Safari's engine on an iPhone, for the touch gestures in "what was the convo?" (needs `npx playwright install webkit`).
-    { name: 'iphone', testMatch: /convo\.spec\.ts/, use: { ...devices['iPhone 15'] } },
+    // Safari's engine on an iPhone, for the touch gestures in "what was the convo?" and the share sheet behind "save ↓"
+    // (needs `npx playwright install webkit`).
+    { name: 'iphone', testMatch: /(convo|save)\.spec\.ts/, use: { ...devices['iPhone 15'] } },
   ],
   webServer: {
     command: 'npx vite web --port 5174 --strictPort',

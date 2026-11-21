@@ -26,10 +26,18 @@ export function renderHome(app: HTMLElement, state: State): void {
   let status = ''
 
   const watch = (wrapId: string) => (location.hash = `#/wrap/${wrapId}`)
-  const action = (wrapId: string, made: boolean, makeLabel: string, attrs: string) =>
-    made
-      ? `<button class="made" data-watch="${escapeHtml(wrapId)}">Made ✓ · Watch</button>`
-      : `<button class="button" data-make="${escapeHtml(wrapId)}" ${attrs}${making ? ' disabled' : ''}>${making === wrapId ? 'Making…' : makeLabel}</button>`
+  /** `name` labels the buttons for screen readers ("Wrap Chat 1", "Remake Chat 1"); `wrapVerb` is null when the text says it. */
+  const action = (wrapId: string, made: boolean, makeLabel: string, data: string, name: string, wrapVerb: string | null) => {
+    const disabled = making ? ' disabled' : ''
+    const id = escapeHtml(wrapId)
+    // A wrap already made can be watched, or remade with the latest messages (and this version of the app): a quiet link.
+    if (made) {
+      return `<span class="made-actions"><button class="made" data-watch="${id}">Made ✓ · Watch</button>` +
+        `<button class="link remake" data-make="${id}" ${data} aria-label="Remake ${escapeHtml(name)}"${disabled}>${making === wrapId ? 'remaking…' : 'remake'}</button></span>`
+    }
+    const label = wrapVerb ? ` aria-label="${wrapVerb} ${escapeHtml(name)}"` : ''
+    return `<button class="button" data-make="${id}" ${data}${label}${disabled}>${making === wrapId ? 'Making…' : makeLabel}</button>`
+  }
 
   app.innerHTML = `
     <section class="panel home">
@@ -60,7 +68,7 @@ export function renderHome(app: HTMLElement, state: State): void {
     const focused = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.make : undefined
     slot('solo').innerHTML = `
       <div><span class="big">✨ My year</span><span>You and your top 5 people, in one story</span></div>
-      ${action(state.solo.wrapId, state.solo.made, 'Make my year', 'data-kind="solo"')}`
+      ${action(state.solo.wrapId, state.solo.made, 'Make my year', 'data-kind="solo"', 'my year', null)}`
     const shown = state.groups.filter((g) => matches(g, query))
     slot('rows').innerHTML =
       shown.length === 0 && state.groups.length > 0
@@ -71,7 +79,7 @@ export function renderHome(app: HTMLElement, state: State): void {
           <li class="chat-row${g.made ? ' is-made' : ''}" data-testid="chat-row">
             <span class="who"><span class="title">${escapeHtml(g.title)}</span><span class="members">${escapeHtml(members(g.memberNames))}</span></span>
             <span class="count">${plural(g.messages, 'message')}</span>
-            ${action(g.wrapId, g.made, 'Wrap it', `data-chat="${g.id}" aria-label="Wrap ${escapeHtml(g.title)}"`)}
+            ${action(g.wrapId, g.made, 'Wrap it', `data-chat="${g.id}"`, g.title, 'Wrap')}
           </li>`,
             )
             .join('')

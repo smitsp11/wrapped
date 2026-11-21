@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { buildSelection, groupWrapId, soloWrapId, type Selection } from './build'
+import type { ConvoMedia } from './convoMedia'
+import type { Count } from './count'
 import type { Presence } from './presence'
 import type { Session } from './session'
 import { listWraps, loadWrap } from './store'
@@ -20,6 +22,10 @@ export type ServerDeps = {
   onClose(): void
   /** a newer published version, once the background check has found one */
   update(): Update | null
+  /** the real photos in the preview's conversations (see convoMedia.ts) */
+  media: ConvoMedia
+  /** adds one to an anonymous daily tally on the website; never waits (see count.ts) */
+  count: Count
 }
 
 const TYPES: Record<string, string> = {
@@ -53,7 +59,9 @@ export async function handle(req: Request, deps: ServerDeps): Promise<Response> 
   if (req.method === 'POST' && url.pathname === '/api/build') {
     const selection = parseSelection(await req.json().catch(() => null))
     if (!selection) return empty(400)
-    return json(buildSelection(deps.session, selection, deps.appDir))
+    const result = buildSelection(deps.session, selection, deps.appDir)
+    for (const _ of result.ids) deps.count(selection.kind === 'solo' ? 'wrap_made_solo' : 'wrap_made_group')
+    return json(result)
   }
   if (req.method === 'GET' && url.pathname === '/api/wraps') {
     const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean)
@@ -63,10 +71,17 @@ export async function handle(req: Request, deps: ServerDeps): Promise<Response> 
       return empty(404)
     }
   }
+  // The maker's preview only: which conversation messages have a photo on this Mac, then each photo by its opaque id.
+  if (req.method === 'GET' && url.pathname === '/api/convo-media') {
+    const items = deps.media.list(url.searchParams.get('wrap') ?? '')
+    return items ? json({ items }) : empty(404)
+  }
+  if (req.method === 'GET' && url.pathname.startsWith('/api/media/')) return deps.media.serve(url.pathname.slice('/api/media/'.length))
   if (req.method === 'POST' && url.pathname === '/api/open-messages') {
     const body = (await req.json().catch(() => null)) as { link?: unknown } | null
     if (typeof body?.link !== 'string' || body.link.length > MAX_LINK || !body.link.startsWith(`${deps.site}/#`)) return empty(400)
     await deps.openMessages(body.link)
+    deps.count('send')
     return empty(204)
   }
   if (req.method === 'POST' && url.pathname === '/api/close') {
@@ -89,7 +104,7 @@ function describe(deps: ServerDeps) {
       const wrapId = groupWrapId(g.title, g.chatIds, period.year)
       return { ...g, wrapId, made: saved.has(wrapId) }
     }),
-    // Always your own contact card's name: a name saved by an older version's name field is ignored.
+    // Always the name worked out on this Mac and checked against your chats (senderName.ts): a name saved by an older version's name field is ignored.
     senderName: deps.session.senderName(),
     update: deps.update(),
   }

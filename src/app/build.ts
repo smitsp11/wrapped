@@ -1,5 +1,6 @@
 import { slug } from '../cliHelpers'
 import { EmptyPeriodError, WrappedError } from '../errors'
+import { saveConvoPhotos } from './convoMedia'
 import { soloTitle, type Session } from './session'
 import { saveWrap } from './store'
 
@@ -29,7 +30,8 @@ export function buildSelection(session: Session, selection: Selection, appDir: s
   // Two ids of one group (or one id twice) make one wrap.
   for (const job of new Map(jobs.map((j) => [j.id, j])).values()) {
     try {
-      const { wrap, undecodable } = job.build()
+      const { wrap, undecodable, photos = [] } = job.build()
+      saveConvoPhotos(appDir, job.id, photos)
       saveWrap(appDir, job.id, wrap)
       result.ids.push(job.id)
       result.undecodable += undecodable

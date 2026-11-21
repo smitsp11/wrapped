@@ -117,8 +117,8 @@ My year wraps don't give Main Character or The Lurker.
 
 ## How your data stays private
 
-The short version: **your messages never leave your Mac.** The only thing that ever leaves is the
-link you choose to send, and you watch it before you send it.
+The short version: **your messages never leave your Mac.** The only part of them that ever leaves
+is the link you choose to send, and you watch it before you send it.
 
 Here's what that means in practice:
 
@@ -128,11 +128,12 @@ Here's what that means in practice:
 - **The wrap lives inside the link.** A link looks like `https://wrapped.smitpatel.xyz/#…`. The wrap
   is packed into the part after the `#`. Browsers never send that part to any server, so when a
   friend opens the link, the website only hands over the page; their phone unpacks the wrap itself.
-  The website is plain static files. It stores nothing and never sees a wrap. (Like any website, its
-  host sees the ordinary request for the page.)
-- **No AI, no analytics, no account.** Nothing is summarised by a model and nothing is tracked. The
-  program's only network request of its own asks the website for the newest version number, and it
-  sends nothing about you.
+  The website never sees a wrap. (Like any website, its host sees the ordinary request for the page.)
+- **No AI, no account, no tracking.** Nothing is summarised by a model, and there are no cookies or
+  user IDs. The site counts page views with Vercel's cookieless analytics, with the part after the
+  `#` removed first, and keeps a daily tally of site visits, wrap links and demos opened. The app adds one to a
+  daily tally when it starts and when you make or send a wrap; no names, IDs or message text.
+  `WRAPPED_NO_COUNT=1` turns that off.
 - **No phone numbers or emails in a link.** People are stored as short ids with the names from your
   Contacts. Anyone who isn't in your Contacts shows up masked, like `+1 ••• ••• 4821` or
   `j•••@gmail.com`.
@@ -150,6 +151,7 @@ Here's what that means in practice:
 | The numbers, names and quotes in a wrap | Packed into the link, after the `#`. |
 | The link | Wherever you paste it. Nowhere else. |
 | wrapped.smitpatel.xyz | Serves the viewer page. Never receives the part after the `#`. |
+| Daily tallies | A number per day for each of: launches, wraps made, wraps sent, site visits, wrap links opened, demos opened. Nothing else. |
 
 One thing to know: anyone who has a link can open that wrap, the same as a screenshot. There's no
 server copy to delete, so share it with the people it's about.
@@ -215,7 +217,7 @@ before running it.
 | `src/app` | the `wrapped` program: the terminal steps, the local server on `127.0.0.1`, saved wraps |
 | `src/cli.ts` | an older developer CLI (`npm run wrapped`) |
 | `web` | the slide viewer, the landing page and the local "your wraps" page |
-| `site` | `install.sh` and the website's routing (`vercel.json`) |
+| `site` | `install.sh`, the website's routing (`vercel.json`) and its one function, the daily tallies (`api/c.ts`) |
 | `fixtures` | builds the fake Messages and Contacts databases used by the tests and the demo |
 | `scripts` | the release build and test helpers |
 
@@ -228,6 +230,7 @@ wrapped                    # make new wraps, or reopen saved ones
 wrapped --year 2025        # a full past year instead of this year so far
 wrapped --version          # print the installed version
 wrapped update             # install the newest version
+WRAPPED_NO_COUNT=1 wrapped # don't add to the anonymous daily tallies
 DEBUG=1 wrapped            # show the full error if something goes wrong
 ```
 

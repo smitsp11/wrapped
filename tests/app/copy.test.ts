@@ -13,6 +13,7 @@ import {
   stoppedLine,
   updatedLine,
   welcomeLines,
+  COUNT_NOTICE,
 } from '../../src/app/copy'
 
 describe('copy', () => {
@@ -82,7 +83,13 @@ describe('copy', () => {
     expect(welcomeLines(true).join('\n')).toContain('Added  wrapped  to your shell\'s startup file')
     expect(welcomeLines(true).join('\n')).toContain('"added by iMessage Wrapped"')
     expect(welcomeLines(false).join('\n')).not.toContain('startup file')
-    expect(welcomeLines(false)).toEqual(['Makes your wraps from Messages on this Mac.'])
+    expect(welcomeLines(false, false)).toEqual(['Makes your wraps from Messages on this Mac.'])
+  })
+  it('says once, on the first run, that it counts anonymous daily tallies and how to turn that off', () => {
+    expect(welcomeLines(false)).toEqual(['Makes your wraps from Messages on this Mac.', COUNT_NOTICE])
+    expect(COUNT_NOTICE).toContain('anonymous daily tallies')
+    expect(COUNT_NOTICE).toContain('WRAPPED_NO_COUNT=1')
+    expect(welcomeLines(true, false).join('\n')).not.toContain('tallies')
   })
   it('keeps the welcome to one neutral line, with no privacy reassurance', () => {
     const text = welcomeLines(true).join('\n').toLowerCase()

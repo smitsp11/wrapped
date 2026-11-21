@@ -36,10 +36,3 @@ describe('caption: peak hour', () => {
     expect(caption({ slide: 'hours', peakHour: 0, peakCount: 0 })).toBeNull()
   })
 })
-
-describe('caption: streak', () => {
-  it('marks a streak of 100 days or more', () => {
-    expect(caption({ slide: 'streak', days: 100 })).toBe("(that's dedication)")
-    expect(caption({ slide: 'streak', days: 99 })).toBeNull()
-  })
-})

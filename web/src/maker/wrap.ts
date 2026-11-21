@@ -3,8 +3,9 @@ import { withSenderName } from '../../../src/share/senderName'
 import { OTHERS_ID, type Wrap } from '../../../src/types'
 import { escapeHtml } from '../slides'
 import { api, describeError, type State } from './api'
+import { loadLocalPreview } from './localPreview'
 import { mountPost } from './post'
-import { withoutContactInfo } from './quotes'
+import { withoutContactInfo } from '../../../src/share/quotes'
 
 type Loaded = { id: string; wrap: Wrap }
 /** Whether the link reached the clipboard, and why Messages didn't open (if it didn't). */
@@ -110,9 +111,15 @@ export async function renderWrap(app: HTMLElement, state: State, id: string, isC
 
   // Packed once: what's in the link never changes on this page.
   try {
-    const { packed } = await fitToLimit(withSenderName(withoutContactInfo(wrap), state.senderName))
+    const [{ packed }, local] = await Promise.all([
+      fitToLimit(withSenderName(withoutContactInfo(wrap), state.senderName)),
+      loadLocalPreview(id),
+    ])
     if (!isCurrent()) return
     link = `${state.site}/#${packed}`
+    // Your own photos, for the preview on this Mac only: the frame reads them from here (see LocalPreview in
+    // convo.ts). The link never has them.
+    window.wrappedLocalPreview = { packed, ...local }
     app.querySelector('iframe.phone')!.setAttribute('src', `/index.html#${packed}`)
     sendButton.disabled = false
   } catch (err) {

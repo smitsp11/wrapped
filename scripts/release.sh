@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds one release, without uploading or deploying anything:
 #   release/  both Mac programs as .tar.gz plus their .sha256 files, for GitHub Releases
-#   deploy/   the small website: the pages, vercel.json and an install.sh pinned to this version
+#   deploy/   the small website: the pages, vercel.json, an install.sh pinned to this version, and api/c.ts
 # It prints the commands that publish them at the end.
 set -eu
 
@@ -39,8 +39,15 @@ cp -R web/dist/. deploy/
 mv deploy/index.html deploy/home.html
 cp site/vercel.json deploy/
 sh scripts/pin-installer.sh "$VERSION" > deploy/install.sh
-# The program checks this on start to say when there's an update (src/app/update.ts).
-printf '{"version":"%s"}\n' "$VERSION" > deploy/version.json
+# The one function (site/api/c.ts): anonymous daily tallies, and the answer to /version.json, which the program
+# checks on start to say when there's an update (src/app/update.ts). vercel.json rewrites /version.json to it, so
+# there must be no deploy/version.json file (files win over rewrites). The release's version is written into it.
+mkdir -p deploy/api
+sed "s/__WRAPPED_VERSION__/$VERSION/" site/api/c.ts > deploy/api/c.ts
+if ! grep -qF "const VERSION = '$VERSION'" deploy/api/c.ts || [ -e deploy/version.json ]; then
+  echo "release.sh: deploy/api/c.ts doesn't answer version $VERSION, or deploy/version.json exists." >&2
+  exit 1
+fi
 
 du -sh release/*.tar.gz deploy
 

@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "tests", "tests-bun", "scripts", "fixtures", "web/src", "e2e", "*.config.ts"]
+  "include": ["src", "tests", "tests-bun", "scripts", "fixtures", "web/src", "e2e", "site", "*.config.ts"]
 }

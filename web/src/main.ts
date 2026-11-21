@@ -3,14 +3,17 @@ import { NewerVersionError } from '../../src/errors'
 import { unpackWrap } from '../../src/share/pack'
 import { parseWrap } from '../../src/share/parseWrap'
 import type { Wrap } from '../../src/types'
-import { closeConvo, isConvoOpen, openConvo } from './convo'
+import { countOpen, pageKind, pageView, startAnalytics } from './analytics'
+import { closeConvo, isConvoOpen, openConvo, type LocalPreview } from './convo'
+import { SAVE_CONTROL, mountSaveControl } from './save/saveControl'
+import { slideCardFor } from './save/slideCards'
 import { buildSlides, escapeHtml, longestWord } from './slides'
 
 const app = document.querySelector<HTMLElement>('#app')!
 
 class DemoLoadError extends Error {}
 
-/** "#demo" loads the fake demo; any other "#..." is a packed wrap. Nothing is sent to a server. */
+/** "#demo" loads the fake demo; any other "#..." is a packed wrap. The # part is never sent to a server. */
 async function loadWrap(): Promise<Wrap | null> {
   const hash = location.hash.slice(1)
   if (!hash) return null
@@ -48,10 +51,10 @@ const HOLD_SLOP_PX = 10
 /** The scrapbook pieces beside the landing copy. Made-up numbers from the demo chat, and decorative only. */
 const LANDING_COLLAGE = `
   <div class="collage" aria-hidden="true">
-    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">320</p><p>messages</p></div><p class="hand">Poker Night</p></div>
+    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">533</p><p>messages</p></div><p class="hand">Poker Night</p></div>
     <ol class="bars">
-      <li><span class="rank">1</span><span class="name">Alex</span><span class="bar" style="--w:100%"></span><span class="value">29.1%</span></li>
-      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:86%"></span><span class="value">25.0%</span></li>
+      <li><span class="rank">1</span><span class="name">Alex</span><span class="bar" style="--w:100%"></span><span class="value">27.8%</span></li>
+      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:86%"></span><span class="value">23.8%</span></li>
     </ol>
     <div class="stamp"><span>CERTIFIED</span><strong style="--len:${longestWord('Main Character')}">Main Character</strong><span>2026</span></div>
     <p class="hand caption">(a made-up demo chat)</p>
@@ -99,8 +102,22 @@ function showError(title: string, message: string): void {
     </section>`
 }
 
+/**
+ * The maker's preview of this very link, on your own Mac: its parent (the maker, same origin) offers your photos.
+ * Anywhere else there's nothing: the page isn't framed, or another site framed it (reading its window throws).
+ */
+function localPreview(): LocalPreview | undefined {
+  try {
+    const local = window.parent !== window ? window.parent.wrappedLocalPreview : undefined
+    return local?.packed === location.hash.slice(1) ? local : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function play(wrap: Wrap): void {
   closeConvo()
+  const local = localPreview()
   const slides = buildSlides(wrap)
   let index = 0
   /** Which way the last move went, so going back turns the page the other way. */
@@ -112,14 +129,23 @@ function play(wrap: Wrap): void {
   }
   const render = () => {
     const slide = slides[index]!
+    // Some pages can be saved as an image (see save/slideCards.ts).
+    const card = slideCardFor(wrap, slide.id)
     app.innerHTML = `
       <div class="progress">${slides.map((_, i) => `<span class="${i <= index ? 'done' : ''}"></span>`).join('')}</div>
-      <section class="slide" data-testid="slide" data-slide="${slide.id}" data-dir="${direction}">${slide.html}</section>`
+      <section class="slide" data-testid="slide" data-slide="${slide.id}" data-dir="${direction}">${slide.html}</section>
+      ${card ? SAVE_CONTROL : ''}`
+    if (card) mountSaveControl(app, card)
   }
   // A greatest hit opens its conversation from its "see the convo" link, or by pressing and holding the card, like
   // long-pressing a message. A plain tap on the card turns the page like any other tap.
-  const openHit = (card: HTMLElement) =>
-    openConvo(wrap, wrap.greatestHits[Number(card.dataset.convo)]!, app, card.querySelector<HTMLElement>('.see-convo') ?? card)
+  // In the maker's preview only, your own photos show in place of "📷 Photo".
+  const openHit = (card: HTMLElement) => {
+    const index = Number(card.dataset.convo)
+    const mediaFor = local?.mediaFor
+    const photoFor = mediaFor ? (message: number) => mediaFor(index, message) : undefined
+    openConvo(wrap, wrap.greatestHits[index]!, app, card.querySelector<HTMLElement>('.see-convo') ?? card, photoFor)
+  }
   let hold: { timer: number; x: number; y: number } | null = null
   /** Set when a hold opened a conversation, so the click that ends the hold doesn't also turn the page. */
   let held = false
@@ -157,6 +183,8 @@ function play(wrap: Wrap): void {
       return
     }
     const target = event.target as Element
+    // "save ↓" and what it opens keep their own taps.
+    if (target.closest('[data-save]')) return
     const link = target.closest('.see-convo')?.closest<HTMLElement>('[data-convo]')
     if (link) {
       openHit(link)
@@ -198,11 +226,14 @@ let loadId = 0
 
 async function start(): Promise<void> {
   const token = ++loadId
+  const kind = pageKind(location.hash)
+  pageView(kind)
   try {
     const wrap = await loadWrap()
     if (token !== loadId) return
     if (wrap) play(wrap)
     else showLanding()
+    countOpen(kind)
   } catch (error) {
     if (token !== loadId) return
     if (error instanceof NewerVersionError) showError('Newer version', `${error.message} Try refreshing the page.`)
@@ -211,5 +242,6 @@ async function start(): Promise<void> {
   }
 }
 
+startAnalytics()
 window.addEventListener('hashchange', () => void start())
 void start()

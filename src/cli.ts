@@ -6,7 +6,7 @@ import readline from 'node:readline/promises'
 import { parseArgs } from 'node:util'
 // The demo command deliberately reuses the test fixture, so the demo and the tests show the same fake chat.
 import { makeFakeWrap } from '../fixtures/fakeWrap'
-import { defaultSenderName, macAccountName } from './app/senderName'
+import { defaultSenderName, macAccountName, readAppleAccount } from './app/senderName'
 import { findChat, isYes, looksLikeContactInfo, numbersToRemove, parseYear, slug } from './cliHelpers'
 import { BrokenLinkError, NewerVersionError, WrappedError } from './errors'
 import { ContactBook } from './extract/contactBook'
@@ -17,7 +17,7 @@ import { fitToLimit } from './share/pack'
 import type { Hit } from './stats/greatestHits'
 import { parseWrap } from './share/parseWrap'
 import { countWords } from './stats/words'
-import type { Chat, Wrap } from './types'
+import type { Chat, Message, Wrap } from './types'
 import { buildWrap } from './wrap/buildWrap'
 import { chatTitle, nameLookup, personLookup } from './wrap/names'
 
@@ -123,8 +123,9 @@ async function group(dbPath: string, query: string, year: number): Promise<void>
     const chat = findChat(loadChats(db, contacts), query)
     const { from, to } = yearRange(year)
     const { messages, undecodable } = normalizeRows(db.messageRows({ chatIds: [chat.id], from, to }))
-    const wordBaseline = countWords(normalizeRows(db.messageRows({ from, to })).messages)
-    const hiddenNames = [...contacts.allNames(), defaultSenderName(db.ownHandles(), contacts, macAccountName)]
+    const everyChat = normalizeRows(db.messageRows({ from, to })).messages
+    const wordBaseline = countWords(everyChat)
+    const hiddenNames = [...contacts.allNames(), senderName(db, contacts, everyChat)]
     const wrap = buildWrap(messages, { mode: 'group', title: chat.name, from, to, nameFor: nameLookup(contacts), wordBaseline, hiddenNames })
     report(saveWrap(wrap, `${slug(chat.name)}-${year}.json`), undecodable)
     await preview(wrap)
@@ -137,7 +138,7 @@ async function solo(dbPath: string, year: number): Promise<void> {
     const chats = loadChats(db, contacts)
     const { from, to } = yearRange(year)
     const { messages, undecodable } = normalizeRows(db.messageRows({ from, to }))
-    const hiddenNames = [...contacts.allNames(), defaultSenderName(db.ownHandles(), contacts, macAccountName)]
+    const hiddenNames = [...contacts.allNames(), senderName(db, contacts, messages)]
     const wrap = buildWrap(messages, { mode: 'solo', title: `Your ${year}`, from, to, nameFor: nameLookup(contacts), chats, hiddenNames })
     report(saveWrap(wrap, `me-${year}.json`), undecodable)
     await preview(wrap)
@@ -244,7 +245,7 @@ function readWrapFile(file: string): Wrap {
 
 async function demo(out: string | undefined): Promise<void> {
   process.env.TZ = 'UTC' // the fake chat is scripted in UTC, so this keeps the demo the same everywhere
-  const wrap = makeFakeWrap('group')
+  const wrap = makeFakeWrap('group', { yearRound: true })
   if (out) {
     fs.writeFileSync(out, JSON.stringify(wrap, null, 2))
     console.log(`Saved ${out}`)
@@ -252,6 +253,12 @@ async function demo(out: string | undefined): Promise<void> {
   }
   report(saveWrap(wrap, 'demo.json'), 0)
   await preview(wrap)
+}
+
+/** Your first name, checked against every message in the period (see senderName.ts), or ''. */
+function senderName(db: MessagesDb, contacts: ContactBook, messages: Message[]): string {
+  const appleAccount = () => readAppleAccount(openNodeSqlite)
+  return defaultSenderName({ ownHandles: db.ownHandles(), contacts, appleAccount, accountName: macAccountName, messages, chats: db.listChats() })
 }
 
 function loadChats(db: MessagesDb, contacts: ContactBook): Chat[] {

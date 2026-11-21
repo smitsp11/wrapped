@@ -33,6 +33,11 @@ describe('checkForUpdate', () => {
     expect(await checkForUpdate(SITE, '0.2.0-beta.3', {}, get)).toEqual({ current: '0.2.0-beta.3', latest: '0.2.0-beta.4' })
     expect(get).toHaveBeenCalledWith(`${SITE}/version.json`, expect.objectContaining({ signal: expect.any(AbortSignal) }))
   })
+  it('asks the site not to count the launch when WRAPPED_NO_COUNT=1', async () => {
+    const get = answering({ version: '0.2.0-beta.4' })
+    await checkForUpdate(SITE, '0.2.0-beta.3', { WRAPPED_NO_COUNT: '1' }, get)
+    expect(get).toHaveBeenCalledWith(`${SITE}/version.json?nocount=1`, expect.anything())
+  })
   it('says nothing when up to date or ahead', async () => {
     expect(await checkForUpdate(SITE, '0.2.0-beta.4', {}, answering({ version: '0.2.0-beta.4' }))).toBeNull()
     expect(await checkForUpdate(SITE, '0.3.0', {}, answering({ version: '0.2.0' }))).toBeNull()

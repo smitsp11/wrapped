@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import Database from 'better-sqlite3'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { ContactBook, type ContactEntry, normalizeHandle } from '../../src/extract/contactBook'
 import { openNodeSqlite } from '../../src/extract/sqliteNode'
@@ -84,6 +85,11 @@ describe('ContactBook', () => {
     expect(names.shortNameFor('4165550006')).toBe('Lee')
     expect(names.shortNameFor('+19995550000')).toBeNull()
   })
+  it('lists the nickname, then the first name, on each card marked as mine', () => {
+    const mine = new ContactBook([], 0, [{ first: 'Taylor', nickname: 'Tay' }, { first: ' Taylor ', nickname: null }, { first: null, nickname: null }])
+    expect(mine.meNames()).toEqual(['Tay', 'Taylor', 'Taylor'])
+    expect(new ContactBook([]).meNames()).toEqual([])
+  })
   it('lists every person name, but not businesses', () => {
     const names = new ContactBook([
       entry({ first: 'Robert', last: 'Smith', nickname: 'Bob', handle: '4165550001' }),
@@ -140,6 +146,33 @@ describe('ContactBook.fromMac', () => {
     expect(book.skippedSources).toBe(1)
     expect(copies).toHaveLength(3)
     for (const c of copies) expect(fs.existsSync(c)).toBe(false)
+  })
+
+  it('reads the card marked as mine, even with no number or email on it, by either of the marks Contacts keeps', () => {
+    const home = freshHome()
+    const root = abDir(home)
+    makeAddressBook(path.join(root, 'AddressBook-v22.abcddb'), [{ first: 'Alex', phones: ['4165550101'] }, { first: 'Taylor', me: true }])
+    const source = path.join(root, 'Sources', 'A', 'AddressBook-v22.abcddb')
+    makeAddressBook(source, [{ first: 'Taylor', nickname: 'Tay', phones: ['4165550100'], me: true }])
+    const raw = new Database(source)
+    raw.exec('ALTER TABLE ZABCDRECORD DROP COLUMN ZCONTAINERWHERECONTACTISME') // only the account's ZME is left
+    raw.close()
+    const book = ContactBook.fromMac(openNodeSqlite, home)
+    expect(book.meNames()).toEqual(['Taylor', 'Tay', 'Taylor'])
+    expect(book.nameFor('4165550100')).toBe('Taylor') // still an ordinary card too
+    expect(book.size).toBe(2)
+  })
+
+  it('finds no card marked as mine in an older database without the marks', () => {
+    const home = freshHome()
+    const file = path.join(abDir(home), 'AddressBook-v22.abcddb')
+    makeAddressBook(file, [{ first: 'Taylor', phones: ['4165550100'], me: true }])
+    const raw = new Database(file)
+    raw.exec('ALTER TABLE ZABCDRECORD DROP COLUMN ZCONTAINERWHERECONTACTISME; ALTER TABLE ZABCDRECORD DROP COLUMN ZME')
+    raw.close()
+    const book = ContactBook.fromMac(openNodeSqlite, home)
+    expect(book.meNames()).toEqual([])
+    expect(book.nameFor('4165550100')).toBe('Taylor')
   })
 
   it('returns an empty book when there is no AddressBook', () => {

@@ -16,14 +16,26 @@ export type ConvoMessage = {
   hearts?: number
 }
 
-/** The conversation a hit was sent in: up to MAX_CONVO_MESSAGES around it, oldest first. `hit` is its index in `messages`. */
-export type Convo = { messages: ConvoMessage[]; hit: number }
+/**
+ * The conversation a hit was sent in: up to MAX_CONVO_MESSAGES around it, oldest first. `hit` is its index in `messages`.
+ * Solo wraps only (their hits come from many chats): `title` is the chat's name, and `people` names the senders who
+ * aren't among the wrap's people.
+ */
+export type Convo = { messages: ConvoMessage[]; hit: number; title?: string; people?: Record<string, string> }
 
-/** `conversation` is optional: solo wraps never have one, and links made before it existed don't either. */
+/** `conversation` is optional: links made before it existed have none. */
 export type Hit = { senderId: string; text: string; sentAt: string; reactions: number; laughs: number; conversation?: Convo }
 
 export const MIN_HIT_REACTIONS = 2
+/** A message in a conversation is cut to this many characters, so one can't fill the link. */
 export const MAX_QUOTE_LENGTH = 280
+/**
+ * Longer messages are never hits: a paragraph or an announcement isn't what people remember, and it would only fit
+ * the slide cut down to a fraction of itself. So a hit is always whole in its conversation.
+ */
+export const MAX_HIT_LENGTH = 280
+/** The Greatest hits slide and its saved image show about this many characters of a quote (see shortQuote). */
+export const SHOWN_QUOTE_LENGTH = 120
 /** The Greatest hits slide shows this many quotes, so only they carry a conversation into a link. */
 export const SHOWN_HITS = 3
 /** A conversation around a hit is cut to about this many messages, keeping more from before the hit than after. */
@@ -32,17 +44,32 @@ const CONVO_BEFORE = 17
 
 export type HitOptions = {
   limit?: number
+  /** only this sender's messages can be hits (solo: "me"); everyone's reactions still count */
+  from?: string
+  /**
+   * How many people are in each chat, you included, by chat id (solo: from each chat's members). A chat not listed
+   * counts everyone seen sending or reacting in it.
+   */
+  chatSizes?: ReadonlyMap<number, number>
   /** group wraps: add the conversation each hit was sent in */
   withConversations?: boolean
+  /**
+   * Called with each hit's index, the messages its conversation shows (the same order as `conversation.messages`) and
+   * the conversation itself. Nothing it sees changes the hit.
+   */
+  onConversation?: (hit: number, shown: Message[], conversation: Convo) => void
 }
 
 /**
- * The group already voted on what was funny: rank text messages by their reactions.
- * Each person counts once per message, and reacting to your own message doesn't count.
+ * The chat already voted on what was funny: rank text messages by the share of the chat that reacted, so 3 of 3 friends
+ * beats 5 of 20. A message's score is its reactions ÷ the other people in its chat; ties go to more reactions, then the
+ * earlier message. A group wrap is one chat, so there it's simply the most reactions.
+ * Each person counts once per message, and reacting to your own message doesn't count. Messages longer than
+ * MAX_HIT_LENGTH are skipped.
  * A custom emoji tapback (even a laughing one) isn't counted as a laugh in v1.
  */
 export function greatestHits(messages: Message[], options: HitOptions = {}): Hit[] {
-  const { limit = 10, withConversations = false } = options
+  const { limit = 10, withConversations = false, onConversation, from, chatSizes } = options
   const senderByGuid = new Map(contentMessages(messages).map((m) => [m.guid, m.senderId]))
   const reactors = new Map<string, Set<string>>()
   const laughers = new Map<string, Set<string>>()
@@ -60,13 +87,22 @@ export function greatestHits(messages: Message[], options: HitOptions = {}): Hit
   }
   const count = (people: Map<string, Set<string>>, m: Message) => people.get(m.guid)?.size ?? 0
 
+  const seen = new Map<number, Set<string>>()
+  for (const m of messages) seen.set(m.chatId, (seen.get(m.chatId) ?? new Set()).add(m.senderId))
+  const others = (chatId: number) => Math.max(1, (chatSizes?.get(chatId) ?? seen.get(chatId)?.size ?? 1) - 1)
+  const score = (m: Message) => count(reactors, m) / others(m.chatId)
+
   const top = contentMessages(messages)
-    .filter((m) => m.text && count(reactors, m) >= MIN_HIT_REACTIONS)
+    .filter(
+      (m) =>
+        m.text &&
+        Array.from(m.text).length <= MAX_HIT_LENGTH &&
+        (from === undefined || m.senderId === from) &&
+        count(reactors, m) >= MIN_HIT_REACTIONS,
+    )
     .sort(
       (a, b) =>
-        count(reactors, b) - count(reactors, a) ||
-        count(laughers, b) - count(laughers, a) ||
-        a.sentAt.getTime() - b.sentAt.getTime(),
+        score(b) - score(a) || count(reactors, b) - count(reactors, a) || a.sentAt.getTime() - b.sentAt.getTime(),
     )
     .slice(0, limit)
 
@@ -79,10 +115,10 @@ export function greatestHits(messages: Message[], options: HitOptions = {}): Hit
     }
   }
 
-  return top.map((m) => {
+  return top.map((m, index) => {
     const hit: Hit = {
       senderId: m.senderId,
-      text: quote(m.text!),
+      text: m.text!,
       sentAt: m.sentAt.toISOString(),
       reactions: count(reactors, m),
       laughs: count(laughers, m),
@@ -102,7 +138,9 @@ export function greatestHits(messages: Message[], options: HitOptions = {}): Hit
       ...counted('laughs', count(laughers, c)),
       ...counted('hearts', count(lovers, c)),
     })
-    return { ...hit, conversation: { messages: window.messages.map(toConvoMessage), hit: window.hit } }
+    const conversation = { messages: window.messages.map(toConvoMessage), hit: window.hit }
+    onConversation?.(index, window.messages, conversation)
+    return { ...hit, conversation }
   })
 }
 
@@ -110,6 +148,21 @@ export function greatestHits(messages: Message[], options: HitOptions = {}): Hit
 function quote(text: string): string {
   const chars = Array.from(text)
   return chars.length > MAX_QUOTE_LENGTH ? chars.slice(0, MAX_QUOTE_LENGTH).join('') + '…' : text
+}
+
+/**
+ * A quote as the Greatest hits slide shows it: at most `max` characters, "…" included. A longer one is cut after its
+ * last whole word (or mid-word, when that word is very long) and ends in "…". Counts whole code points, so an emoji is
+ * never split in half. The conversation behind the quote still shows all of it.
+ */
+export function shortQuote(text: string, max = SHOWN_QUOTE_LENGTH): string {
+  const chars = Array.from(text)
+  if (chars.length <= max) return text
+  // One character more than fits: if it's a space, the word before it is whole.
+  const head = chars.slice(0, max).join('')
+  const space = head.search(/\s\S*$/)
+  const cut = space >= head.length / 2 ? head.slice(0, space) : chars.slice(0, max - 1).join('')
+  return cut.replace(/[\s.,;:…-]+$/u, '') + '…'
 }
 
 /** `{ [name]: n }`, or nothing when n is 0. */

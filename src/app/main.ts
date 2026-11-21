@@ -9,6 +9,8 @@ import { DEFAULT_CHAT_DB } from '../extract/messagesDb'
 import { openBunSqlite } from '../extract/sqliteBun'
 import { checkAccess, FULL_DISK_ACCESS_URL, terminalName } from './access'
 import { Cancelled, onExit } from './cleanup'
+import { createConvoMedia } from './convoMedia'
+import { counter, countingOff } from './count'
 import * as copy from './copy'
 import { catchKeyboardErrors, listenForKeys, NO_KEYBOARD } from './keys'
 import { openNewMessage } from './messagesApp'
@@ -89,7 +91,7 @@ function fit(text: string, joiner = '\n'): string {
 /** First run only: what it does, the startup-file line if the installer added one, and Continue?. Later runs skip all of it. */
 async function askConsent(): Promise<void> {
   if (hasConsented(APP_DIR)) return
-  log.info(fit(copy.welcomeLines(installerAddedToPath()).join('\n')))
+  log.info(fit(copy.welcomeLines(installerAddedToPath(), !countingOff(process.env)).join('\n')))
   const yes = await confirm({ message: 'Continue?' })
   if (isCancel(yes) || !yes) stop()
   saveConsent(APP_DIR)
@@ -131,6 +133,7 @@ async function load(dbPath: string, period: Period, now: Date): Promise<Session>
   s.start('Reading your messages')
   const { contacts, note: contactsNote } = loadContactBook(openBunSqlite)
   const session = openSession({ openSqlite: openBunSqlite, dbPath, contacts, period, now })
+  session.senderName() // reads every chat in the period once, here under the spinner rather than when the page opens
   s.stop(`Messages ✓  Contacts ✓ (${contacts.size.toLocaleString('en-US')} names)`)
   if (contactsNote) log.warn(fit(contactsNote))
   return session
@@ -236,19 +239,27 @@ async function main(): Promise<void> {
 /** Opens the page and keeps the server running until the page closes, the page's Close link, or q / Ctrl-C. */
 async function runInBrowser(session: Session, updateCheck: Promise<Update | null>): Promise<void> {
   let update: Update | null = null
-  const app = startServer({ site: SITE, session, appDir: APP_DIR, openMessages: openNewMessage, update: () => update })
-  openBrowser(app.url)
-  const [opened, keys] = copy.openLines(app.url)
-  log.success(fit(opened!))
-  log.message(fit(keys!))
-  void updateCheck.then((found) => {
-    update = found
-    if (found) log.warn(fit(copy.updateLine(found)))
-  })
-  const stopKeys = listenForKeys(process.stdin, (action) => (action === 'open' ? openBrowser(app.url) : app.stop('quit')), keyboardBroken)
-  const reason = await app.stopped
-  stopKeys()
-  outro(fit(copy.stoppedLine(reason, onPath()), '\n   '))
+  // Converted photos sit in a temp folder until the run ends, however it ends.
+  const media = createConvoMedia({ appDir: APP_DIR, attachmentFile: (guid) => session.attachmentFile(guid) })
+  const unregister = onExit(() => media.close())
+  try {
+    const app = startServer({ site: SITE, session, appDir: APP_DIR, openMessages: openNewMessage, update: () => update, media, count: counter(SITE) })
+    openBrowser(app.url)
+    const [opened, keys] = copy.openLines(app.url)
+    log.success(fit(opened!))
+    log.message(fit(keys!))
+    void updateCheck.then((found) => {
+      update = found
+      if (found) log.warn(fit(copy.updateLine(found)))
+    })
+    const stopKeys = listenForKeys(process.stdin, (action) => (action === 'open' ? openBrowser(app.url) : app.stop('quit')), keyboardBroken)
+    const reason = await app.stopped
+    stopKeys()
+    outro(fit(copy.stoppedLine(reason, onPath()), '\n   '))
+  } finally {
+    unregister()
+    media.close()
+  }
 }
 
 /** The keyboard can't be read: one plain line, not a stack trace. Exiting runs the cleanup (the database copy). */

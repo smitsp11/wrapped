@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { lastYearChange } from '../src/app/lastYear'
 import { maskHandle } from '../src/format'
 import { MessagesDb } from '../src/extract/messagesDb'
 import { normalizeRows } from '../src/extract/normalize'
@@ -17,11 +18,20 @@ function fakeName(handle: string): string {
   return Object.values(FAKE_PEOPLE).find((p) => p.handle === handle)?.name ?? maskHandle(handle)
 }
 
-/** Builds a wrap from a freshly generated fake chat.db. Used by tests and `wrapped demo`. */
-export function makeFakeWrap(mode: 'group' | 'solo' = 'group'): Wrap {
+/**
+ * Builds a wrap from a freshly generated fake chat.db. Used by tests and `wrapped demo`.
+ * `textingStyles: false` leaves out the messages that give everyone a distinct texting style (the fake chat before them),
+ * and `moreHits: false` the reactions that give the fake chat a third greatest hit (see makeFakeDb).
+ * `yearRound` adds the rest of the year (see makeFakeDb): the demo uses it, so its months and month-by-month slides look
+ * like a real year.
+ */
+export function makeFakeWrap(
+  mode: 'group' | 'solo' = 'group',
+  { textingStyles = true, yearRound = false, moreHits = true } = {},
+): Wrap {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrapped-fake-'))
   try {
-    const fake = makeFakeDb(dir, { hitConversations: true })
+    const fake = makeFakeDb(dir, { hitConversations: true, textingStyles, yearRound, moreHits })
     const db = MessagesDb.open(openNodeSqlite, fake.path)
     try {
       const chats = db.listChats().map((c) => ({ ...c, name: c.name || fakeName(c.memberIds[0] ?? '') }))
@@ -30,7 +40,10 @@ export function makeFakeWrap(mode: 'group' | 'solo' = 'group'): Wrap {
       // group top words are compared with every fake chat, like the app does
       const wordBaseline = countWords(normalizeRows(db.messageRows({ from: FROM, to: TO })).messages)
       const title = mode === 'group' ? 'Poker Night' : 'Your 2026'
-      return buildWrap(messages, { mode, title, from: FROM, to: TO, nameFor: fakeName, chats, wordBaseline })
+      // like the app: against the same dates last year, when the fake history goes back that far
+      const vsLastYear = lastYearChange(db, db.messageSpan(), { from: FROM, to: TO }, chatIds)
+      const ownHandles = db.ownHandles()
+      return buildWrap(messages, { mode, title, from: FROM, to: TO, nameFor: fakeName, chats, wordBaseline, vsLastYear, ownHandles })
     } finally {
       db.close()
     }

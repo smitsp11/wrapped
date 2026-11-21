@@ -9,6 +9,11 @@ export type TimingStats = {
   /** 24 counts, midnight first */
   byHour: number[]
   longestStreakDays: number
+  /**
+   * The local calendar day with the most messages, and how many. Ties go to the earliest such day. Optional: links made
+   * before it existed have none, and a wrap with no messages has none.
+   */
+  busiestDay?: { date: string; messages: number }
   /** longest gap between two messages, in whole 24-hour days (rounded down) */
   longestSilenceDays: number
   /** share of each person's messages sent between 12 and 5 AM */
@@ -43,12 +48,32 @@ export function timingStats(messages: Message[]): TimingStats {
     longestStreakDays: longestStreak(content),
     longestSilenceDays: longestSilence(content),
     lateNightShareByPerson,
+    ...busiestDay(content),
   }
 }
 
 /** Calendar day number in local time, so "a day" matches the phone's clock. */
-function dayNumber(date: Date): number {
+export function dayNumber(date: Date): number {
   return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY)
+}
+
+/** A dayNumber back to its calendar date, 'YYYY-MM-DD'. */
+export function dayString(day: number): string {
+  return new Date(day * DAY).toISOString().slice(0, 10)
+}
+
+/** Messages per local day; the busiest day wins, and of equally busy days the earliest. */
+function busiestDay(content: Message[]): Pick<TimingStats, 'busiestDay'> {
+  const perDay = new Map<number, number>()
+  for (const m of content) {
+    const day = dayNumber(m.sentAt)
+    perDay.set(day, (perDay.get(day) ?? 0) + 1)
+  }
+  let best: [day: number, messages: number] | null = null
+  for (const [day, messages] of perDay) {
+    if (!best || messages > best[1] || (messages === best[1] && day < best[0])) best = [day, messages]
+  }
+  return best ? { busiestDay: { date: dayString(best[0]), messages: best[1] } } : {}
 }
 
 function longestStreak(sorted: Message[]): number {

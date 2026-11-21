@@ -44,7 +44,9 @@ describe('share links', () => {
 
   it('carries the conversation around each shown quote, and plays a link made before conversations existed', async () => {
     expect(wrap.greatestHits.every((h) => h.conversation !== undefined)).toBe(true)
-    expect(await unpackWrap((await fitToLimit(wrap)).packed)).toEqual(wrap)
+    // Only the quotes the slide shows keep their conversation.
+    const shown = { ...wrap, greatestHits: wrap.greatestHits.map(({ conversation, ...hit }, i) => (i < SHOWN_HITS ? { ...hit, conversation } : hit)) }
+    expect(await unpackWrap((await fitToLimit(wrap)).packed)).toEqual(shown)
     const old = { ...wrap, greatestHits: wrap.greatestHits.map(({ conversation: _, ...hit }) => hit) }
     expect(await unpackWrap(await packWrap(old))).toEqual(old)
   })

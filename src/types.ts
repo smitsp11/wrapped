@@ -2,6 +2,7 @@ import type { Hit } from './stats/greatestHits'
 import type { ReactionStats } from './stats/reactions'
 import type { ReplyStats } from './stats/replies'
 import type { StarterStats } from './stats/starters'
+import type { TextingStats } from './stats/texting'
 import type { TimingStats } from './stats/timing'
 import type { VolumeStats } from './stats/volume'
 import type { WordStats } from './stats/words'
@@ -72,6 +73,15 @@ export type Wrap = {
   greatestHits: Hit[]
   awards: Award[]
   topChats: { name: string; messages: number }[]
+  /** group wraps only: how each member texts, for the texting styles slide. Optional: older links don't have it. */
+  texting?: TextingStats
+  // Optional, so links made before these existed still open.
+  /** solo: who you exchanged the most 1:1 messages with each month, January first; null for a month with none (see personalStats) */
+  topPersonByMonth?: (string | null)[]
+  /** solo: the longest run of days in a row with a 1:1 message with one person, from `from` (a local date) */
+  personStreak?: { personId: string; days: number; from: string }
+  /** the message total against the same dates `year` (a year earlier), as a whole percent; only when that year has real history */
+  vsLastYear?: { year: number; percent: number }
 }
 
 /** The oldest and newest real message. */

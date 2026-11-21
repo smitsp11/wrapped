@@ -142,6 +142,30 @@ describe('MessagesDb on isolated files', () => {
     }
   })
 
+  it("finds a message's first attachment file by the message guid, for the maker's preview only", () => {
+    const f = makeFakeDb(freshDir(), { hitConversations: true })
+    let reader = MessagesDb.open(openNodeSqlite, f.path)
+    let photoGuid = ''
+    try {
+      const rows = reader.messageRows({ chatIds: [f.groupChatId], ...YEAR })
+      photoGuid = rows.find((r) => r.attachmentType === 'image/heic')!.guid
+      expect(reader.attachmentFile(photoGuid)).toEqual({ filename: `~/Library/Messages/Attachments/fake/${photoGuid}`, type: 'image/heic' })
+      expect(reader.attachmentFile(rows.find((r) => !r.hasAttachment)!.guid)).toBeNull()
+      expect(reader.attachmentFile("nope' OR 1=1 --")).toBeNull()
+    } finally {
+      reader.close()
+    }
+    const writer = new Database(f.path)
+    writer.exec('DROP TABLE message_attachment_join')
+    writer.close()
+    reader = MessagesDb.open(openNodeSqlite, f.path)
+    try {
+      expect(reader.attachmentFile(photoGuid)).toBeNull()
+    } finally {
+      reader.close()
+    }
+  })
+
   it("reads Apple's group ids, and does without them on databases that lack the columns", () => {
     const f = makeFakeDb(freshDir(), { splitGroups: true })
     let reader = MessagesDb.open(openNodeSqlite, f.path)

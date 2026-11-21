@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { timingStats } from '../../src/stats/timing'
 import { msg, react } from '../../fixtures/messages'
 
@@ -92,4 +92,59 @@ it('reports the longer run after a broken streak', () => {
     msg({ senderId: 'alex', sentAt: '2026-01-12T12:00:00Z' }),
   ])
   expect(t.longestStreakDays).toBe(3)
+})
+
+describe('busiest day', () => {
+  it('is the local day with the most messages, with its count, not counting reactions', () => {
+    const a = msg({ senderId: 'alex', sentAt: '2026-03-14T12:00:00Z' })
+    const t = timingStats([
+      msg({ senderId: 'alex', sentAt: '2026-03-13T12:00:00Z' }),
+      a,
+      msg({ senderId: 'me', chatId: 2, sentAt: '2026-03-14T13:00:00Z' }), // any chat counts
+      react('me', a, 'love', '2026-03-15T12:00:00Z'),
+      react('sam', a, 'laugh', '2026-03-15T12:01:00Z'),
+      react('jordan', a, 'like', '2026-03-15T12:02:00Z'),
+    ])
+    expect(t.busiestDay).toEqual({ date: '2026-03-14', messages: 2 })
+  })
+
+  it('goes to the earliest of equally busy days, whatever the message order', () => {
+    const messages = [
+      msg({ senderId: 'alex', sentAt: '2026-07-01T12:00:00Z' }),
+      msg({ senderId: 'alex', sentAt: '2026-02-01T12:00:00Z' }),
+      msg({ senderId: 'alex', sentAt: '2026-07-01T13:00:00Z' }),
+      msg({ senderId: 'alex', sentAt: '2026-02-01T13:00:00Z' }),
+    ]
+    expect(timingStats(messages).busiestDay).toEqual({ date: '2026-02-01', messages: 2 })
+    expect(timingStats([...messages].reverse()).busiestDay).toEqual({ date: '2026-02-01', messages: 2 })
+  })
+
+  it('is left out when there are no messages', () => {
+    expect(timingStats([]).busiestDay).toBeUndefined()
+    expect('busiestDay' in timingStats([])).toBe(false)
+  })
+
+  it('splits days at local midnight, like the streak, and works across a DST change', () => {
+    const previous = process.env.TZ
+    process.env.TZ = 'America/Toronto'
+    try {
+      // 11:30 PM on Jan 5 and 12:30 AM on Jan 6 local: one UTC day, two local days; Jan 6 has the extra message.
+      const t = timingStats([
+        msg({ senderId: 'alex', sentAt: '2026-01-06T04:30:00Z' }),
+        msg({ senderId: 'alex', sentAt: '2026-01-06T05:30:00Z' }),
+        msg({ senderId: 'alex', sentAt: '2026-01-06T15:00:00Z' }),
+      ])
+      expect(t.busiestDay).toEqual({ date: '2026-01-06', messages: 2 })
+      // Mar 8 (DST starts) is 23 hours long: 12:30 AM and 11:30 PM local are still one day.
+      const dst = timingStats([
+        msg({ senderId: 'alex', sentAt: '2026-03-08T05:30:00Z' }),
+        msg({ senderId: 'alex', sentAt: '2026-03-09T03:30:00Z' }),
+        msg({ senderId: 'alex', sentAt: '2026-03-09T04:30:00Z' }), // 12:30 AM Mar 9
+      ])
+      expect(dst.busiestDay).toEqual({ date: '2026-03-08', messages: 2 })
+    } finally {
+      if (previous === undefined) delete process.env.TZ
+      else process.env.TZ = previous
+    }
+  })
 })

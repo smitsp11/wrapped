@@ -19,8 +19,12 @@ describe('the fake demo', () => {
     expect(omw!.conversation!.messages[omw!.conversation!.hit]).toMatchObject({ senderId: 'me', text: 'omw', hearts: 3 })
   })
 
-  it('never puts a conversation in a solo wrap', () => {
-    expect(makeFakeWrap('solo').greatestHits.every((h) => h.conversation === undefined)).toBe(true)
+  it("gives My year's quote its conversation too, titled with its chat", () => {
+    const solo = makeFakeWrap('solo')
+    const convo = solo.greatestHits[0]!.conversation!
+    expect(convo.title).toBe('Poker Night')
+    expect(convo.messages[convo.hit]).toMatchObject({ senderId: 'me', text: 'omw', hearts: 3 })
+    expect(convoHtml(solo, solo.greatestHits[0]!)).toContain('<b>Poker Night</b>')
   })
 })
 
@@ -80,6 +84,42 @@ describe('convoHtml', () => {
     expect(html).toContain('📷 Photo')
     expect(html).toContain('🎥 Video')
     expect(html).toContain('<span class="who">Someone</span>')
+  })
+
+  it("gives a photo a frame only where the maker's preview has the real one, above a text sent with it; videos and other files stay placeholders", () => {
+    const at = '2026-01-12T20:00:00.000Z'
+    const hit = hitWith({
+      messages: [
+        { senderId: 'p1', text: '', sentAt: at, media: 'photo' },
+        { senderId: 'me', text: '', sentAt: at, media: 'photo' },
+        { senderId: 'p1', text: '', sentAt: at, media: 'video' },
+        { senderId: 'p2', text: 'hi', sentAt: at },
+      ],
+      hit: 3,
+    })
+    const html = convoHtml(wrap, hit, new Set([1, 2, 3]))
+    expect(html.match(/data-photo/g)).toHaveLength(2)
+    expect(html).toContain('<div class="bubble photo" data-photo="1"><span class="photo-label">📷 Photo</span></div>')
+    expect(html).toContain('<p class="bubble media">📷 Photo</p>') // message 0: not offered
+    expect(html).toContain('<p class="bubble media">🎥 Video</p>')
+    expect(html).toContain(
+      '<div class="bubble-wrap"><div class="bubble photo above" data-photo="3"><span class="photo-label">📷 Photo</span></div><p class="bubble">hi</p></div>',
+    )
+    expect(convoHtml(wrap, hit, new Set([1]))).toContain('<div class="bubble-wrap"><p class="bubble">hi</p></div>')
+    expect(html).not.toContain('<img')
+    expect(convoHtml(wrap, hit)).not.toContain('data-photo') // what friends see
+  })
+
+  it("names a My year sender from the conversation's own people when the wrap doesn't have them", () => {
+    const at = '2026-01-12T20:00:00.000Z'
+    const html = convoHtml(wrap, hitWith({
+      messages: [{ senderId: 'p9', text: 'yo', sentAt: at }, { senderId: 'me', text: 'hi', sentAt: at }],
+      hit: 1,
+      title: 'Ski Trip',
+      people: { p9: 'Dana Smith' },
+    }))
+    expect(html).toContain('<b>Ski Trip</b>')
+    expect(html).toContain('<span class="who">Dana</span>')
   })
 
   it('is empty for a hit without a conversation', () => {
