@@ -74,8 +74,8 @@ test('"see the convo" opens the conversation, lifted and centred, without flippi
 
   await expect(dialog(page)).toHaveAttribute('data-state', 'lifted')
   const hit = dialog(page).locator('[data-hit]')
-  await expect(hit).toContainText('poker tonight?')
-  await expect(hit.locator('.tapback')).toHaveText('😂 ×4')
+  await expect(hit).toContainText('establishing a table image')
+  await expect(hit.locator('.tapback')).toHaveText('😂 ×4 ❤️ ×1')
   await expect.poll(() => hitScale(page)).toBeGreaterThan(1.1)
   // The rest stays visible behind it, dimmed.
   await expect.poll(() => dialog(page).locator('.msg:not(.hit)').first().evaluate((el) => Number(getComputedStyle(el).opacity))).toBeLessThan(0.5)
@@ -95,7 +95,7 @@ test('a tap settles the hit so the whole thread reads and scrolls; tapping the q
   const thread = dialog(page).locator('.thread')
   expect(await thread.evaluate((el) => getComputedStyle(el).overflowY)).toBe('auto')
   await thread.evaluate((el) => el.scrollTo({ top: 0 }))
-  await expect(dialog(page).getByText('you good? you left in a hurry last night')).toBeInViewport()
+  await expect(dialog(page).getByText('ok new rule for friday')).toBeInViewport()
   await expect(dialog(page)).toHaveAttribute('data-state', 'settled')
 
   await press(dialog(page).locator('[data-hit] .bubble'))
@@ -105,7 +105,7 @@ test('a tap settles the hit so the whole thread reads and scrolls; tapping the q
 test('back returns to the same slide, with focus on the quote that opened it', async ({ page }) => {
   await toHits(page)
   await press(seeConvo(page, 1))
-  await expect(dialog(page).locator('[data-hit]')).toContainText('omw')
+  await expect(dialog(page).locator('[data-hit]')).toContainText('wrote a whole essay')
   await press(page.getByRole('button', { name: '← back to the wrap' }))
   await expect(dialog(page)).toHaveCount(0)
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'hits')
@@ -162,7 +162,7 @@ test('pressing and holding a card opens its conversation, and letting go neither
   await toHits(page)
   await drag(page.locator('[data-convo="1"] blockquote'), { holdMs: 700 })
   await expect(dialog(page)).toBeVisible()
-  await expect(dialog(page).locator('[data-hit]')).toContainText('omw')
+  await expect(dialog(page).locator('[data-hit]')).toContainText('wrote a whole essay')
   await expect(dialog(page)).toHaveAttribute('data-state', 'lifted')
   await page.waitForTimeout(300)
   await expect(dialog(page)).toHaveAttribute('data-state', 'lifted')

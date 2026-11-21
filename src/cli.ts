@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import readline from 'node:readline/promises'
 import { parseArgs } from 'node:util'
-// The demo command deliberately reuses the test fixture, so the demo and the tests show the same fake chat.
+// The demo command deliberately reuses the test fixtures: its fake chat is their realistic year (fixtures/realisticChat.ts).
 import { makeFakeWrap } from '../fixtures/fakeWrap'
 import { defaultSenderName, macAccountName, readAppleAccount } from './app/senderName'
 import { findChat, isYes, looksLikeContactInfo, numbersToRemove, parseYear, slug } from './cliHelpers'
@@ -245,7 +245,7 @@ function readWrapFile(file: string): Wrap {
 
 async function demo(out: string | undefined): Promise<void> {
   process.env.TZ = 'UTC' // the fake chat is scripted in UTC, so this keeps the demo the same everywhere
-  const wrap = makeFakeWrap('group', { yearRound: true })
+  const wrap = makeFakeWrap('group', { realistic: true })
   if (out) {
     fs.writeFileSync(out, JSON.stringify(wrap, null, 2))
     console.log(`Saved ${out}`)

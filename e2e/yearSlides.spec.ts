@@ -36,8 +36,8 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
       await expect(slide.locator('.aside')).toHaveCount(0)
       await expect(slide).not.toContainText('2025')
       await expect(slide.locator('.months span')).toHaveCount(12)
-      await expect(slide.locator('.day-page')).toHaveText('Aug 15')
-      await expect(slide.getByText('48 messages')).toBeVisible()
+      await expect(slide.locator('.day-page')).toHaveText('May 21')
+      await expect(slide.getByText('633 messages')).toBeVisible()
       await expectFits(page)
     })
 

@@ -226,6 +226,8 @@ p { margin: 0; }
   .word-notes.long { grid-template-columns: minmax(0, 1fr); }
   .word-notes.long .note.sticky { justify-self: end; max-width: none; margin-top: 4px; display: flex; align-items: center; gap: 12px; }
   .word-notes.long .note.sticky .label { margin-bottom: 0; }
+  /* Beside the list, five emoji go two to a line rather than one, so the page doesn't scroll. */
+  .word-notes:not(.long) .emoji { font-size: 30px; }
 }
 .emoji { font-size: 40px; line-height: 1.15; }
 .signature { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }

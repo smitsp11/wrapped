@@ -1,7 +1,9 @@
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { toAppleNs } from '../src/extract/appleTime'
+import { REACTION_TYPES, type ReactionType } from '../src/types'
 import { makeAttributedBody } from './attributedBody'
+import { DM_FRIENDS, EXTRA_PEOPLE, realisticChat, type ChatEvent, type Media } from './realisticChat'
 
 /** Fake people. The handles use reserved 555-01xx numbers and example.com. */
 export const FAKE_PEOPLE = {
@@ -14,8 +16,13 @@ export const FAKE_PEOPLE = {
 /** The phone number and email the fake "me" sends from (on my own messages, like Messages records them). */
 export const FAKE_ME = { phone: '+14165550100', email: 'me@example.com' } as const
 
+/** FAKE_PEOPLE and EXTRA_PEOPLE: everyone in the realistic chat. */
+const ALL_FAKE_PEOPLE = { ...FAKE_PEOPLE, ...EXTRA_PEOPLE }
+
 type Friend = keyof typeof FAKE_PEOPLE
-type Sender = Friend | 'me'
+/** Everyone in a fake chat: FAKE_PEOPLE, plus EXTRA_PEOPLE in the realistic one. */
+type Person = Friend | keyof typeof EXTRA_PEOPLE
+type Sender = Person | 'me'
 
 /**
  * Book Club, one group that Messages keeps as three chat rows, plus a different group with the same name.
@@ -54,6 +61,8 @@ const SCHEMA = `
 const LOVE = 2000
 const LAUGH = 2003
 const REMOVE_LAUGH = 3003
+/** associated_message_type for each reaction, as Messages writes it (see normalize.ts). */
+const REACTION_CODES = Object.fromEntries(REACTION_TYPES.map((type, i) => [type, 2000 + i])) as Record<ReactionType, number>
 const GROUP_STYLE = 43
 const DM_STYLE = 45
 
@@ -93,8 +102,12 @@ const RILEY_BURSTS = [
 type FakeAttachment = { mime: string; uti: string }
 const PHOTO: FakeAttachment = { mime: 'image/heic', uti: 'public.heic' }
 const VIDEO: FakeAttachment = { mime: '', uti: 'com.apple.quicktime-movie' }
+const FILE: FakeAttachment = { mime: 'application/pdf', uti: 'com.adobe.pdf' }
+const ATTACHMENTS: Record<Media, FakeAttachment> = { photo: PHOTO, video: VIDEO, file: FILE }
 
-type AddOptions = { text?: string; body?: Buffer; attachment?: FakeAttachment; itemType?: number; reactTo?: string; reactType?: number }
+type AddOptions = {
+  text?: string; body?: Buffer; attachment?: FakeAttachment; itemType?: number; reactTo?: string; reactType?: number; reactEmoji?: string
+}
 
 /**
  * `splitGroups` adds Book Club (see SplitGroups) after everything else, so the default database never changes.
@@ -105,11 +118,16 @@ type AddOptions = { text?: string; body?: Buffer; attachment?: FakeAttachment; i
  * `hitConversations` adds a short conversation around each greatest hit, for "what was the convo?" (fakeWrap and the demo use it).
  * `textingStyles` gives the members distinct texting styles (JORDAN_PARAGRAPHS, RILEY_BURSTS; fakeWrap and the demo use it).
  * `moreHits` gives two more of my texts reactions (day 21's "who has the cards…", day 40's "omw"), so My year and the
- * group each have three greatest hits (fakeWrap and the demo use it).
+ * group each have three greatest hits (fakeWrap uses it).
+ * `realistic` makes a different database instead: a busy, made-up year of Poker Night with six people (see
+ * realisticChat.ts), and a 1:1 chat with each of them. The demo uses it; the other options don't apply.
  */
 export function makeFakeDb(
   dir: string,
-  { splitGroups = false, hitConversations = false, textingStyles = false, callsMe = '', yearRound = false, moreHits = false } = {},
+  {
+    splitGroups = false, hitConversations = false, textingStyles = false, callsMe = '', yearRound = false, moreHits = false,
+    realistic = false,
+  } = {},
 ): FakeDb {
   const dbPath = path.join(dir, 'chat.db')
   const db = new Database(dbPath)
@@ -118,9 +136,10 @@ export function makeFakeDb(
     db.exec(SCHEMA)
 
     const insertHandle = db.prepare('INSERT INTO handle (id, service) VALUES (?, ?)')
-    const handleIds = {} as Record<Friend, number>
-    for (const key of Object.keys(FAKE_PEOPLE) as Friend[]) {
-      handleIds[key] = Number(insertHandle.run(FAKE_PEOPLE[key].handle, 'iMessage').lastInsertRowid)
+    const handleIds = {} as Record<Person, number>
+    const people = realistic ? ALL_FAKE_PEOPLE : FAKE_PEOPLE
+    for (const key of Object.keys(people) as (keyof typeof people)[]) {
+      handleIds[key] = Number(insertHandle.run(people[key].handle, 'iMessage').lastInsertRowid)
     }
 
     const insertChat = db.prepare(`INSERT INTO chat (guid, style, chat_identifier, service_name, display_name, group_id, original_group_id)
@@ -143,6 +162,7 @@ export function makeFakeDb(
       INSERT INTO message (guid, text, attributedBody, handle_id, date, is_from_me, cache_has_attachments, item_type,
         associated_message_guid, associated_message_type, destination_caller_id, account)
       VALUES (@guid, @text, @body, @handleId, @date, @fromMe, @attachment, @itemType, @assocGuid, @assocType, @callerId, @account)`)
+    const insertEmoji = db.prepare('UPDATE message SET associated_message_emoji = ? WHERE ROWID = ?')
     const insertJoin = db.prepare('INSERT INTO chat_message_join (chat_id, message_id, message_date) VALUES (?, ?, ?)')
     const insertAttachment = db.prepare('INSERT INTO attachment (guid, filename, uti, mime_type, transfer_name) VALUES (?, ?, ?, ?, ?)')
     const insertAttachmentJoin = db.prepare('INSERT INTO message_attachment_join (message_id, attachment_id) VALUES (?, ?)')
@@ -169,6 +189,7 @@ export function makeFakeDb(
         account: fromMe ? `E:${FAKE_ME.email}` : null,
       })
       insertJoin.run(chatId, lastInsertRowid, date)
+      if (opts.reactEmoji) insertEmoji.run(opts.reactEmoji, lastInsertRowid)
       if (opts.attachment) {
         const { mime, uti } = opts.attachment
         const file = `~/Library/Messages/Attachments/fake/${guid}`
@@ -182,6 +203,17 @@ export function makeFakeDb(
     function at(day: number, time: string): Date {
       const [hours = 0, minutes = 0] = time.split(':').map(Number)
       return new Date(Date.UTC(2026, 0, 5 + day, hours, minutes))
+    }
+
+    if (realistic) {
+      const dms = Object.fromEntries(DM_FRIENDS.map((friend) => {
+        if (friend === 'alex') return [friend, dmChatId]
+        const id = addChat(DM_STYLE, ALL_FAKE_PEOPLE[friend].handle, '', [handleIds[friend]])
+        dmHandles.set(id, handleIds[friend])
+        return [friend, id]
+      }))
+      db.transaction(() => addEvents(add, realisticChat(), groupChatId, dms))()
+      return { path: dbPath, groupChatId, dmChatId }
     }
 
     db.transaction(() => {
@@ -297,6 +329,18 @@ export function makeFakeDb(
 }
 
 type Add = (chatId: number, sender: Sender, sentAt: Date, opts?: AddOptions) => string
+
+/** realisticChat's events, in order: each reaction points at an earlier message. */
+function addEvents(add: Add, events: ChatEvent[], group: number, dms: Record<string, number>): void {
+  const guids: string[] = []
+  for (const e of events) {
+    const chatId = e.dm ? dms[e.dm]! : group
+    const opts: AddOptions = e.react
+      ? { reactTo: guids[e.react.to], reactType: REACTION_CODES[e.react.type], ...(e.react.emoji ? { reactEmoji: e.react.emoji } : {}) }
+      : { text: e.text, ...(e.media ? { attachment: ATTACHMENTS[e.media] } : {}) }
+    guids.push(add(chatId, e.from, e.at, opts))
+  }
+}
 
 /** A UTC time on a day of 2026 (month 0 is January), or of `year`. */
 function on(month: number, date: number, time = '00:00', year = 2026): Date {

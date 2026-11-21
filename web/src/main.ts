@@ -51,10 +51,10 @@ const HOLD_SLOP_PX = 10
 /** The scrapbook pieces beside the landing copy. Made-up numbers from the demo chat, and decorative only. */
 const LANDING_COLLAGE = `
   <div class="collage" aria-hidden="true">
-    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:3">533</p><p>messages</p></div><p class="hand">Poker Night</p></div>
+    <div class="polaroid taped"><div class="photo"><p class="big" style="--len:6">22,938</p><p>messages</p></div><p class="hand">Poker Night</p></div>
     <ol class="bars">
-      <li><span class="rank">1</span><span class="name">Alex</span><span class="bar" style="--w:100%"></span><span class="value">27.8%</span></li>
-      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:86%"></span><span class="value">23.8%</span></li>
+      <li><span class="rank">1</span><span class="name">Riley</span><span class="bar" style="--w:100%"></span><span class="value">35.3%</span></li>
+      <li><span class="rank">2</span><span class="name">You</span><span class="bar" style="--w:76%"></span><span class="value">26.7%</span></li>
     </ol>
     <div class="stamp"><span>CERTIFIED</span><strong style="--len:${longestWord('Main Character')}">Main Character</strong><span>2026</span></div>
     <p class="hand caption">(a made-up demo chat)</p>
