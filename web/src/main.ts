@@ -60,6 +60,14 @@ const LANDING_COLLAGE = `
     <p class="hand caption">(a made-up demo chat)</p>
   </div>`
 
+/**
+ * On the demo only: the way back to the landing page, where the install line is. A ✕ beside the progress bar, like
+ * closing a story, and on screens tall enough to have room, a "Try it yourself →" pill. Links, so taps don't turn the page.
+ */
+const DEMO_EXIT =
+  `<a class="demo-close" href="/" aria-label="Close the demo">✕</a>` +
+  `<a class="demo-exit" href="/" data-demo-exit>Try it yourself →</a>`
+
 function showLanding(): void {
   stopPlaying()
   const command = `curl -fsSL ${location.host} | sh`
@@ -134,7 +142,8 @@ function play(wrap: Wrap): void {
     app.innerHTML = `
       <div class="progress">${slides.map((_, i) => `<span class="${i <= index ? 'done' : ''}"></span>`).join('')}</div>
       <section class="slide" data-testid="slide" data-slide="${slide.id}" data-dir="${direction}">${slide.html}</section>
-      ${card ? SAVE_CONTROL : ''}`
+      ${card ? SAVE_CONTROL : ''}
+      ${location.hash === '#demo' ? DEMO_EXIT : ''}`
     if (card) mountSaveControl(app, card)
   }
   // A greatest hit opens its conversation from its "see the convo" link, or by pressing and holding the card, like
