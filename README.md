@@ -31,7 +31,7 @@
 
 <p align="center">
   <a href="https://wrapped.smitpatel.xyz/#demo">
-    <img src="docs/images/demo.gif" width="320" alt="A phone tapping through the wrap of a made-up group chat called Poker Night: 533 messages on a taped polaroid with 'That's about 2 texts a day', a 'Who talked the most' bar chart led by Alex Chen at 27.8%, the group's top words and phrases with each person's signature word, three greatest-hit quotes, one opened to show the conversation around it with the quote lifted out, a stamped Main Character award, and the 'our 2026 in texts' summary card to save.">
+    <img src="docs/images/demo.gif" width="320" alt="A phone tapping through the wrap of a made-up group chat called Poker Night: 22,938 messages on a taped polaroid with 'That's about 71 texts a day', a 'Who talked the most' bar chart led by Riley Park at 35.3%, everyone's texting style (Spray n Pray, One and Done, Nonchalant, Paragraph Texter), three greatest-hit quotes, one opened to show the conversation around Alex's 'engrave sam's name on it now, save time' with the quote lifted out, a stamped Comedian award for Sam Rivera, and the 'our 2026 in texts' summary card to save.">
   </a>
   <br>
   <sub>Poker Night, a made-up group chat, tapped through on a phone. <a href="https://wrapped.smitpatel.xyz/#demo">Open the demo</a>.</sub>
@@ -98,7 +98,7 @@ and is only used when your chats back it up (for example, friends greet you by i
 it keeps "You".
 
 <p align="center">
-  <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left, open on its first page. Beside it, 'Group chat · 2026 so far', the title, '533 messages · 5 people', the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, then 'Now post yours' with a small share card, Save image, Copy image and Make another.">
+  <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left, open on its first page. Beside it, 'Group chat · 2026 so far', the title, '22,938 messages · 6 people', the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, then 'Now post yours' with a small share card, Save image, Copy image and Make another.">
   <br>
   <sub>The wrap page on your Mac, just after Send.</sub>
 </p>
