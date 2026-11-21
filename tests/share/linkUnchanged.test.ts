@@ -30,10 +30,10 @@ const BEFORE_PHOTOS = {
 /**
  * Texting styles came later and add one optional field (`texting`). Without it, and on the fake chat as it was then
  * (`textingStyles: false`), the link must still be the same bytes: so texting styles changed nothing else either.
- * The same goes for the busiest day, month by month, the streak with one person and last year, added after that.
+ * The same goes for the busiest day, month by month (and its counts), the streak with one person and last year, added after that.
  */
 function beforeTextingStyles(wrap: Wrap): Wrap {
-  const { texting: _, topPersonByMonth: _months, personStreak: _streak, vsLastYear: _last, ...rest } = wrap
+  const { texting: _, topPersonByMonth: _months, topPersonCountByMonth: _counts, personStreak: _streak, vsLastYear: _last, ...rest } = wrap
   const { busiestDay: _day, ...timing } = wrap.timing
   return { ...rest, timing }
 }

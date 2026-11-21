@@ -78,6 +78,8 @@ export type Wrap = {
   // Optional, so links made before these existed still open.
   /** solo: who you exchanged the most 1:1 messages with each month, January first; null for a month with none (see personalStats) */
   topPersonByMonth?: (string | null)[]
+  /** solo: lined up with topPersonByMonth, how many 1:1 messages you and that month's person exchanged; 0 for a month with none. Optional: added later */
+  topPersonCountByMonth?: number[]
   /** solo: the longest run of days in a row with a 1:1 message with one person, from `from` (a local date) */
   personStreak?: { personId: string; days: number; from: string }
   /** the message total against the same dates `year` (a year earlier), as a whole percent; only when that year has real history */

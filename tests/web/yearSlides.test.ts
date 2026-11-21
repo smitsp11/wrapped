@@ -33,12 +33,12 @@ describe('the months slide', () => {
     expect(html).toContain('--n:11')
   })
 
-  it('shows the busiest day as a calendar page with its count and weekday', () => {
+  it('shows the busiest day as a calendar page with its count, weekday and a "what happened?"', () => {
     const wrap = makeFakeWrap('group')
     wrap.timing.busiestDay = { date: '2026-03-14', messages: 1203 }
     const html = monthsSlide(wrap).html
     expect(html).toContain('<p class="day-page"><span>Mar</span> <b>14</b></p>')
-    expect(html).toContain('<b>1,203 messages</b> <small>a Saturday</small>')
+    expect(html).toContain('<b>1,203 messages</b> <small>a Saturday</small><span class="what hand">what happened on Mar 14?</span>')
     wrap.timing.busiestDay = { date: '2026-03-15', messages: 1 }
     expect(monthsSlide(wrap).html).toContain('<b>1 message</b> <small>a Sunday</small>')
   })
@@ -52,13 +52,23 @@ describe('the months slide', () => {
     expect(html).not.toContain('busiest')
   })
 
-  it('has no caption, and never compares with last year even when the wrap knows it', () => {
+  it("calls the busiest month the chat's yap era, or yours, by its full name", () => {
+    const wrap = makeFakeWrap('group')
+    wrap.timing.byMonth = [5, 9, 9, 0, 1, 2, 3, 4, 50, 6, 7, 8]
+    expect(monthsSlide(wrap).html).toContain('<h2>Peak month</h2><p class="aside">September was the chat&#39;s yap era</p>')
+    const solo = makeFakeWrap('solo')
+    solo.timing.byMonth = [5, 9, 9, 0, 70, 2, 3, 4, 50, 6, 7, 8]
+    expect(monthsSlide(solo).html).toContain('<p class="aside">May was your yap era</p>')
+  })
+
+  it('has no caption for a year with no messages, and never compares with last year even when the wrap knows it', () => {
     const wrap = makeFakeWrap('group')
     wrap.vsLastYear = { year: 2025, percent: 18 }
     const html = monthsSlide(wrap).html
-    expect(html).not.toContain('class="aside"')
     expect(html).not.toContain('2025')
     expect(html).not.toContain('18%')
+    wrap.timing.byMonth = new Array(12).fill(0)
+    expect(monthsSlide(wrap).html).not.toContain('class="aside"')
   })
 })
 
@@ -69,16 +79,57 @@ describe('your person, month by month', () => {
     return wrap
   }
 
-  it('is a card per month up to this one, with first names', () => {
+  it('is a card per month up to this one, with first names, under a subtitle', () => {
     const wrap = solo()
     wrap.period = yearSoFar
-    wrap.topPersonByMonth = months(12, ['p4', 'p4', 'p2', null, 'p2', 'p4', 'p4', 'p4', 'p4', 'p4', 'p4', 'p2'])
+    wrap.topPersonByMonth = months(12, ['p4', 'p4', 'p2', null, 'p2', 'p4', 'p2', 'p4', 'p2', 'p4', 'p4', 'p2'])
     const html = monthPeopleSlide(wrap)!.html
-    expect(html).toContain('<h2>Your person</h2>')
-    expect(html).not.toContain('class="aside"')
+    expect(html).toContain('<h2>Your person</h2><p class="aside">who you texted the most, month by month</p>\n')
+    expect(html).not.toContain('era')
     expect(html.match(/<li/g)).toHaveLength(11) // no December yet
-    const shown = [...html.matchAll(/<span class="month">(\w+)<\/span><span class="name">([^<]+)<\/span>/g)].map((m) => `${m[1]} ${m[2]}`)
+    const shown = [...html.matchAll(/<span class="month">(\w+)<\/span><span class="name"[^>]*>([^<]+)<\/span>/g)].map((m) => `${m[1]} ${m[2]}`)
     expect(shown.slice(0, 5)).toEqual(['Jan Priya', 'Feb Priya', 'Mar Sam', 'Apr —', 'May Sam'])
+  })
+
+  it("puts each month's message count under the name, and none for an older link without counts", () => {
+    const wrap = solo()
+    wrap.topPersonByMonth = months(12, ['p4', 'p2', null, 'p2'])
+    wrap.topPersonCountByMonth = [412, 1204, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0]
+    const html = monthPeopleSlide(wrap)!.html
+    expect(html).toContain('<span class="name" style="--len:5">Priya</span><span class="count">412</span></li>')
+    expect(html).toContain('>Sam</span><span class="count">1,204</span></li>')
+    expect(html).toContain('<li class="none" style="--i:2"><span class="month">Mar</span><span class="name">—</span></li>')
+    expect(html.match(/class="count"/g)).toHaveLength(3)
+    delete wrap.topPersonCountByMonth
+    const older = monthPeopleSlide(wrap)!.html
+    expect(older).not.toContain('class="count"')
+    expect(older).toContain('<span class="name" style="--len:5">Priya</span></li>')
+  })
+
+  it('sizes a name by its length and lets a long word break only in its middle', () => {
+    const wrap = solo()
+    wrap.people.p1 = 'Valentinovich Okafor'
+    wrap.people.p2 = 'Bartholomew Finch'
+    wrap.people.p3 = 'Ana Lu'
+    wrap.topPersonByMonth = months(12, ['p1', 'p2', 'p3', 'p4'])
+    const html = monthPeopleSlide(wrap)!.html
+    expect(html).toContain('<span class="name" style="--len:13">Valenti<wbr>novich</span>')
+    expect(html).toContain('<span class="name" style="--len:11">Bartho<wbr>lomew</span>')
+    expect(html).toContain('<span class="name" style="--len:3">Ana</span>')
+    expect(html).toContain('<span class="name" style="--len:5">Priya</span>')
+  })
+
+  it('calls the longest run of three or more months with one person their era, next to the subtitle', () => {
+    const wrap = solo()
+    wrap.topPersonByMonth = months(12, ['p4', 'p4', 'p4', 'p2', null, 'p2', 'p2', 'p2', 'p2', 'p4', 'p4', 'p4'])
+    const html = monthPeopleSlide(wrap)!.html
+    expect(html).toContain('<p class="aside">who you texted the most, month by month</p><p class="aside era">Jun–Sep was the Sam era</p>')
+    wrap.topPersonByMonth = months(12, ['p4', 'p4', 'p4', 'p2', 'p2', 'p2']) // equal runs: the earlier one
+    expect(monthPeopleSlide(wrap)!.html).toContain('Jan–Mar was the Priya era')
+    wrap.topPersonByMonth = months(12, ['p4', 'p4', null, 'p4', 'p2', 'p2', 'p4']) // a gap ends a run
+    expect(monthPeopleSlide(wrap)!.html).not.toContain('era')
+    wrap.topPersonByMonth = months(12, ['p1', 'p1', 'p1', 'p3'])
+    expect(monthPeopleSlide(wrap)!.html).toContain('Jan–Mar was the Alex C. era') // the same short name as its cards
   })
 
   it('gives each person one ink, in the order they first appear, and an empty month a dash', () => {
@@ -92,12 +143,12 @@ describe('your person, month by month', () => {
 
   it('tells two people with one first name apart, and escapes names', () => {
     const wrap = solo()
-    wrap.people.p4 = '<b>Bo</b>'
+    wrap.people.p4 = '<b>Bo'
     wrap.topPersonByMonth = months(12, ['p1', 'p3', 'p4'])
     const html = monthPeopleSlide(wrap)!.html
     expect(html).toContain('>Alex C.<')
     expect(html).toContain('>Alex K.<')
-    expect(html).toContain('&lt;b&gt;Bo&lt;/b&gt;')
+    expect(html).toContain('&lt;b&gt;Bo<')
   })
 
   it('is left out of group wraps, older links, and a year without 1:1 messages so far', () => {
@@ -126,16 +177,36 @@ describe('the longest streak with one person', () => {
     expect(html).not.toContain('at least one message')
   })
 
-  it('has no caption or quip, and no line about the any-message streak', () => {
+  it('has no caption at 100 days or fewer, and no line about the any-message streak', () => {
     const wrap = makeFakeWrap('solo', { yearRound: true })
-    wrap.personStreak = { personId: 'p2', days: 120, from: '2026-01-01' }
+    wrap.personStreak = { personId: 'p2', days: 100, from: '2026-01-01' }
     wrap.timing.longestStreakDays = 200
     const html = personStreakSlide(wrap)!.html
-    expect(html).toContain('Jan 1 → Apr 30')
+    expect(html).toContain('Jan 1 → Apr 10')
     expect(html).not.toContain('class="aside"')
     expect(html).not.toContain('dedication')
     expect(html).not.toContain('texting anyone')
     expect(html).not.toContain('never missed')
+  })
+
+  it('tells you to move in together past 100 days with one person', () => {
+    const wrap = makeFakeWrap('solo', { yearRound: true })
+    wrap.personStreak = { personId: 'p2', days: 120, from: '2026-01-01' }
+    const html = personStreakSlide(wrap)!.html
+    expect(html).toContain('Jan 1 → Apr 30')
+    expect(html).toContain('<h2>Longest streak</h2><p class="aside">at this point just move in together</p>')
+    expect(html).not.toContain('never missed')
+  })
+
+  it('shows only the never-missed line when both it and moving in apply', () => {
+    const wrap = makeFakeWrap('solo', { yearRound: true })
+    wrap.period = yearSoFar
+    wrap.personStreak = { personId: 'p2', days: 200, from: '2026-01-01' }
+    wrap.timing.longestStreakDays = 325
+    const html = personStreakSlide(wrap)!.html
+    expect(html).toContain('never missed a day')
+    expect(html).not.toContain('move in')
+    expect(html).not.toContain('class="aside"')
   })
 
   it('says you never missed a day when the any-message streak covers the whole period', () => {
@@ -160,17 +231,18 @@ describe('the longest streak with one person', () => {
     expect(slideHtml(group, 'streak')).toContain('in a row with at least one message')
   })
 
-  it("cleans up the group streak too: no caption, quip or silence line, and a note only when the chat never went quiet", () => {
+  it("cleans up the group streak too: no silence line, moving in past 100 days, and a note only when the chat never went quiet", () => {
     const group = makeFakeWrap('group', { yearRound: true })
     group.timing.longestStreakDays = 150
     group.timing.longestSilenceDays = 9
     const html = slideHtml(group, 'streak')!
-    expect(html).not.toContain('class="aside"')
+    expect(html).toContain('<p class="aside">at this point just move in together, all of you</p>') // 150 days
     expect(html).not.toContain('silence')
     expect(html).not.toContain('class="lede"')
     expect(html).not.toContain('never-missed')
     group.period = yearSoFar
     group.timing.longestStreakDays = 325
     expect(slideHtml(group, 'streak')).toContain('<p class="never-missed">not a single quiet day</p>')
+    expect(slideHtml(group, 'streak')).not.toContain('class="aside"')
   })
 })

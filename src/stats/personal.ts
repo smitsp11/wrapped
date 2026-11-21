@@ -12,6 +12,8 @@ import { dayNumber, dayString } from './timing'
 export type PersonalStats = {
   /** 12 handles, January first (local time): who you exchanged the most 1:1 messages with that month; null for a month with none */
   topPersonByMonth: (string | null)[]
+  /** 12 counts lined up with topPersonByMonth: the 1:1 messages you and that person exchanged that month; 0 for a month with none */
+  topPersonCountByMonth: number[]
   /** the longest run of consecutive local days with at least one 1:1 message with one person (either way), and its first day */
   personStreak: { person: string; days: number; from: string } | null
 }
@@ -53,13 +55,14 @@ export function personalStats(messages: Message[], partners: Map<number, string>
     if (people.length === 0) return null
     return people.sort((a, b) => counts[b]! - counts[a]! || rank(a, b))[0]!
   })
+  const topPersonCountByMonth = topPersonByMonth.map((person, i) => (person === null ? 0 : monthly[i]![person]!))
 
   let personStreak: PersonalStats['personStreak'] = null
   for (const person of [...days.keys()].sort(rank)) {
     const run = longestRun(days.get(person)!)
     if (!personStreak || run.days > personStreak.days) personStreak = { person, days: run.days, from: dayString(run.from) }
   }
-  return { topPersonByMonth, personStreak }
+  return { topPersonByMonth, topPersonCountByMonth, personStreak }
 }
 
 /** The longest run of consecutive day numbers; of equal runs, the earliest. `days` is non-empty. */

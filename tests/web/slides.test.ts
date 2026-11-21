@@ -150,14 +150,27 @@ describe('buildSlides', () => {
     expect(widths[widths.length - 1]).toBeLessThan(100)
   })
 
-  it('titles the replies slide with no caption and shows seconds under a minute', () => {
+  it('titles the replies slide and shows seconds under a minute, with a caption for the fastest under a minute', () => {
     const wrap = makeFakeWrap('group')
+    expect(slideHtml(wrap, 'replies')).toContain('<h2>Fastest repliers</h2><div class="stage">') // nobody under a minute
     wrap.replies.medianReplyMinutesByPerson.p2 = 0.68
     const html = slideHtml(wrap, 'replies')
-    expect(html).toContain('<h2>Fastest repliers</h2><div class="stage">')
-    expect(html).not.toContain('class="aside"')
+    expect(html).toContain(`<h2>Fastest repliers</h2><p class="aside">${wrap.people.p2!.split(' ')[0]} does not have a life</p>`)
     expect(html).toContain('41 sec')
     expect(html).not.toContain('>0 min<')
+  })
+
+  it('says "you do not have a life" when you reply fastest, unless a shared group link names you', () => {
+    const solo = makeFakeWrap('solo')
+    solo.replies.medianReplyMinutesByPerson.me = 0.2
+    solo.replies.repliesByPerson.me = 50
+    expect(slideHtml(solo, 'replies')).toContain('<p class="aside">you do not have a life</p>')
+    const group = makeFakeWrap('group')
+    group.replies.medianReplyMinutesByPerson.me = 0.2
+    group.replies.repliesByPerson.me = 50
+    expect(slideHtml(group, 'replies')).toContain('<p class="aside">you do not have a life</p>')
+    group.people.me = 'Taylor Swift' // withSenderName
+    expect(slideHtml(group, 'replies')).toContain('<p class="aside">Taylor does not have a life</p>')
   })
 
   it("sizes an award winner by the name's longest word", () => {
@@ -278,20 +291,41 @@ describe('buildSlides handwritten asides and shares', () => {
     expect(slideHtml(makeFakeWrap('group'), 'volume')).not.toContain('class="aside"')
   })
 
-  it('appends the peak-hour quip to its caption, and the streak has none', () => {
+  it('appends the peak-hour quip to its caption', () => {
     const wrap = makeFakeWrap('group')
     wrap.timing.byHour = wrap.timing.byHour.map((_, hour) => (hour === 2 ? 50 : 1))
-    wrap.timing.longestStreakDays = 120
-    expect(slideHtml(wrap, 'hours')).toContain('<p class="aside">the chat&#39;s rush hour <span class="quip">(way past bedtime)</span></p>')
+    expect(slideHtml(wrap, 'hours')).toContain('<p class="aside">the chat&#39;s rush hour <span class="quip">(go to sleep 😭)</span></p>')
+    wrap.timing.byHour = wrap.timing.byHour.map((_, hour) => (hour === 6 ? 50 : 1))
+    expect(slideHtml(wrap, 'hours')).toContain('<span class="quip">(early birds fr)</span>')
+  })
+
+  it('tells a group with a streak over 100 days to move in together, unless it never went quiet', () => {
+    const wrap = makeFakeWrap('group')
+    wrap.timing.longestStreakDays = 100
     expect(slideHtml(wrap, 'streak')).not.toContain('class="aside"')
+    wrap.timing.longestStreakDays = 120
+    expect(slideHtml(wrap, 'streak')).toContain('<h2>Longest streak</h2><p class="aside">at this point just move in together, all of you</p>')
     expect(slideHtml(wrap, 'streak')).not.toContain('dedication')
+    wrap.period = { from: '2026-01-01', to: '2026-04-11' } // 100 days, every one of them texted
+    wrap.timing.longestStreakDays = 101
+    expect(slideHtml(wrap, 'streak')).toContain('not a single quiet day')
+    expect(slideHtml(wrap, 'streak')).not.toContain('move in')
+  })
+
+  it('calls out the Paragraph Texter in place of the texting styles aside, or you', () => {
+    const wrap = makeFakeWrap('group', { realistic: true })
+    expect(slideHtml(wrap, 'texting-styles')).toContain('<p class="aside">Jordan writes essays, the rest of you text</p>')
+    const words = wrap.texting!.medianWordsByPerson
+    ;[words.me, words.p4] = [words.p4!, words.me!]
+    expect(slideHtml(wrap, 'texting-styles')).toContain('<p class="aside">you write essays, the rest of them text</p>')
   })
 
   // Only short, natural captions; nothing that explains how a number was worked out.
   it('keeps only the short group captions', () => {
     expect(asidesOf(makeFakeWrap('group'))).toEqual({
       hours: 'the chat&#39;s rush hour',
-      'texting-styles': '(500 texts or paragraphs?)',
+      months: 'January was the chat&#39;s yap era',
+      'texting-styles': 'Jordan writes essays, the rest of you text',
       outro: 'see you next year',
     })
   })
@@ -302,7 +336,9 @@ describe('buildSlides handwritten asides and shares', () => {
     expect(asidesOf(wrap)).toEqual({
       volume: expect.stringMatching(/^texts they sent( <span class="quip">.*<\/span>)?$/),
       'top-chats': 'whole threads',
+      'month-people': 'who you texted the most, month by month',
       hours: 'your texting rush hour',
+      months: 'January was your yap era',
       outro: 'see you next year',
     })
   })

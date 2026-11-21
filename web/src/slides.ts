@@ -1,15 +1,16 @@
 import { formatMinutes } from '../../src/format'
 import { DAY } from '../../src/stats/conversation'
 import { SHOWN_HITS, shortQuote } from '../../src/stats/greatestHits'
-import { caption } from './captions'
+import { caption, type CaptionName } from './captions'
 import { summarySlide } from './summary'
 import { monthPeopleSlide, monthsSlide, personStreakSlide } from './yearSlides'
 import { OTHERS_ID } from '../../src/types'
 import type { Wrap } from '../../src/types'
+import { firstName } from '../../src/wrap/names'
 import { PARAGRAPH_TEXTER_MIN_WORDS, textingStyles } from '../../src/wrap/textingStyles'
 
 export type Slide = { id: string; html: string }
-type Row = { name: string; value: number }
+type Row = { id?: string; name: string; value: number }
 
 const MAX_BARS = 6
 const MAX_SIGNATURES = 6
@@ -32,6 +33,15 @@ export function escapeHtml(text: string): string {
 /** Own-property check: an id like "toString" must not find something on Object.prototype. */
 export function personName(wrap: Wrap, id: string): string {
   return Object.hasOwn(wrap.people, id) ? wrap.people[id]! : 'Someone'
+}
+
+/**
+ * A person as a caption names them: their first name, or "you" for the viewer in My year, or in a group wrap that still
+ * says "You" (a shared one says the sender's name instead; see withSenderName).
+ */
+export function captionName(wrap: Wrap, id: string): CaptionName {
+  const name = personName(wrap, id)
+  return { name: firstName(name), you: id === 'me' && (wrap.mode === 'solo' || name === 'You') }
 }
 
 export function plural(n: number, word: string): string {
@@ -152,7 +162,7 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
   const ranked = (record: Record<string, number>, order: 'desc' | 'asc' = 'desc', skip: string[] = []): Row[] =>
     Object.entries(record)
       .filter(([id]) => id !== OTHERS_ID && !skip.includes(id))
-      .map(([id, value]) => ({ name: personName(wrap, id), value }))
+      .map(([id, value]) => ({ id, name: personName(wrap, id), value }))
       .sort((a, b) => (order === 'desc' ? b.value - a.value : a.value - b.value))
   const slides: Slide[] = []
   const year = escapeHtml(wrap.period.from.slice(0, 4))
@@ -226,17 +236,20 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
   slides.push(monthsSlide(wrap))
 
   const streakDays = wrap.timing.longestStreakDays
+  const neverMissed = neverMissedADay(wrap)
+  // A group's streak over 100 days gets an aside, unless the never-missed note is already there.
+  const streakAside = isGroup && !neverMissed ? aside(caption({ slide: 'streak', days: streakDays, group: true })) : ''
   // My year leads with the longest streak with one person (personStreakSlide); a group, or an older link, with any message.
   slides.push(personStreakSlide(wrap) ?? {
     id: 'streak',
-    html: `<h2>Longest streak</h2>
+    html: `<h2>Longest streak</h2>${streakAside}
       <div class="stage">
         <div class="calendar">
           <p class="rings" aria-hidden="true"><span></span><span></span></p>
           <p class="big">${plural(streakDays, 'day')}</p>
           <p class="hand">in a row with at least one message</p>
         </div>
-        ${neverMissedADay(wrap) ? neverMissedNote(isGroup ? 'not a single quiet day' : 'you never missed a day of texting') : ''}
+        ${neverMissed ? neverMissedNote(isGroup ? 'not a single quiet day' : 'you never missed a day of texting') : ''}
       </div>`,
   })
 
@@ -250,9 +263,11 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
   if (replies.length > 0) {
     // Each person's median time to join a conversation someone else started (timed from its first message), so one slow
     // night doesn't count against them.
+    const fastest = replies[0]!
+    const note = caption({ slide: 'replies', minutes: fastest.value, who: captionName(wrap, fastest.id!) })
     slides.push({
       id: 'replies',
-      html: `<h2>Fastest repliers</h2><div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
+      html: `<h2>Fastest repliers</h2>${aside(note)}<div class="stage">${bars(replies, formatMinutes, 'smallest')}</div>`,
     })
   }
 
@@ -386,9 +401,11 @@ function textingStylesSlide(wrap: Wrap): Slide | null {
         `<span class="style-name">${escapeHtml(p.style.name)}</span></li>`,
     )
     .join('')
+  const essayist = people.find((p) => p.style.id === 'paragraph-texter')
+  const note = caption({ slide: 'texting-styles', essayist: essayist ? captionName(wrap, essayist.personId) : null })
   return {
     id: 'texting-styles',
-    html: `<h2>Texting styles</h2>${aside('(500 texts or paragraphs?)')}
+    html: `<h2>Texting styles</h2>${aside(note ?? '(500 texts or paragraphs?)')}
       <div class="stage"><ul class="styles${people.length > ROOMY_STYLE_ROWS ? ' many' : ''}">${rows}</ul></div>`,
   }
 }

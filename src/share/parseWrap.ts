@@ -183,6 +183,10 @@ function checkNewerStats(value: Record<string, unknown>): void {
     const months = value.topPersonByMonth
     check(Array.isArray(months) && months.length === 12 && months.every((id) => id === null || isPersonId(id)))
   }
+  if (value.topPersonCountByMonth !== undefined) {
+    const counts = value.topPersonCountByMonth
+    check(Array.isArray(counts) && counts.length === 12 && counts.every((n) => Number.isInteger(n) && n >= 0))
+  }
   if (value.personStreak !== undefined) checkFields(value.personStreak, { personId: isPersonId, days: isFiniteNumber, from: matches(DATE) })
   if (value.vsLastYear !== undefined) checkFields(value.vsLastYear, { year: Number.isInteger, percent: isFiniteNumber })
 }

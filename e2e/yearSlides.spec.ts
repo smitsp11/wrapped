@@ -14,6 +14,14 @@ async function goTo(page: Page, id: string): Promise<void> {
   await expect(slide).toHaveAttribute('data-slide', id)
 }
 
+/** Each of `selector`'s elements takes at most `max` lines. */
+async function expectLines(page: Page, selector: string, max: number): Promise<void> {
+  for (const el of await page.locator(selector).all()) {
+    const { text, lines } = await el.evaluate((e) => ({ text: e.textContent, lines: Math.round((e as HTMLElement).offsetHeight / parseFloat(getComputedStyle(e).lineHeight)) }))
+    expect(lines, `"${text}" takes too many lines`).toBeLessThanOrEqual(max)
+  }
+}
+
 /** The page fits without scrolling, nothing sticks out sideways, and no name in `selector` is cut short. */
 async function expectFits(page: Page, selector?: string): Promise<void> {
   const slide = page.getByTestId('slide')
@@ -27,33 +35,89 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
   test.describe(`at ${size.width}×${size.height}`, () => {
     test.use({ viewport: size })
 
-    test('the demo shows its peak month and busiest day, with no caption and no last year', async ({ page }) => {
+    test('the demo shows its peak month as the yap era and its busiest day, and no last year', async ({ page }) => {
       await page.goto('/#demo')
       await page.evaluate(() => document.fonts.ready)
       await goTo(page, 'months')
       const slide = page.getByTestId('slide')
       await expect(slide.getByRole('heading', { name: 'Peak month' })).toBeVisible()
-      await expect(slide.locator('.aside')).toHaveCount(0)
+      await expect(slide.locator('.aside')).toHaveText("May was the chat's yap era")
       await expect(slide).not.toContainText('2025')
       await expect(slide.locator('.months span')).toHaveCount(12)
       await expect(slide.locator('.day-page')).toHaveText('May 21')
       await expect(slide.getByText('633 messages')).toBeVisible()
+      await expect(slide.locator('.busiest .what')).toHaveText('what happened on May 21?')
+      await expectLines(page, '.aside, .busiest .what', 2)
       await expectFits(page)
     })
+
+    test("My year's peak month is your yap era, and fits", async ({ page }) => {
+      await page.goto(`/#${await soloLink()}`)
+      await page.evaluate(() => document.fonts.ready)
+      await goTo(page, 'months')
+      await expect(page.locator('.aside')).toHaveText(/^\w+ was your yap era$/)
+      await expect(page.locator('.busiest .what')).toHaveText(/^what happened on \w{3} \d+\?$/)
+      await expectLines(page, '.aside, .busiest .what', 2)
+      await expectFits(page)
+    })
+
+    for (const months of [12, 11]) {
+      test(`long names on your person's ${months} cards are written smaller or wrap, never cut, with a count under each`, async ({ page }) => {
+        const wrap = makeFakeWrap('solo', { yearRound: true })
+        if (months === 11) wrap.period = { from: '2026-01-01', to: '2026-11-22' }
+        Object.assign(wrap.people, { p1: 'Alexandria Moss', p2: 'Bartholomew Finch', p3: 'Valentinovich Okafor', p4: 'Maximiliano Ruiz' })
+        wrap.people.p5 = 'Wolfeschlegelsteinhausenberger Jr' // absurd: the only name allowed to end in "…"
+        wrap.topPersonByMonth = ['p1', 'p2', 'p3', 'p4', 'p5', null, 'p1', 'p2', 'p3', 'p4', 'p1', 'p2']
+        wrap.topPersonCountByMonth = [412, 1204, 87, 3, 12345, 0, 640, 99, 2210, 18, 404, 777]
+        await page.goto(`/#${await packWrap(wrap)}`)
+        await page.evaluate(() => document.fonts.ready)
+        await goTo(page, 'month-people')
+        await expect(page.locator('.month-people li')).toHaveCount(months)
+        await expect(page.locator('.month-people .count')).toHaveCount(months - 1)
+        await expect(page.locator('.month-people li').first()).toContainText('412')
+        const names = await page.locator('.month-people .name').evaluateAll((items) =>
+          items.map((el) => ({
+            text: el.textContent!,
+            lines: Math.round((el as HTMLElement).offsetHeight / parseFloat(getComputedStyle(el).lineHeight)),
+            cut: el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth,
+          })),
+        )
+        for (const name of names) {
+          expect(name.lines, `"${name.text}" takes too many lines`).toBeLessThanOrEqual(2)
+          if (!name.text.startsWith('Wolfe')) expect(name.cut, `"${name.text}" is cut off`).toBe(false)
+        }
+        await expect(page.locator('.aside').first()).toHaveText('who you texted the most, month by month')
+        await expectFits(page)
+      })
+    }
 
     test('My year shows your person month by month and the streak with one person', async ({ page }) => {
       await page.goto(`/#${await soloLink()}`)
       await goTo(page, 'month-people')
       const cards = page.locator('.month-people li')
       await expect(cards).toHaveCount(12)
-      await expect(cards.nth(3)).toHaveText('AprSam')
-      await expect(cards.nth(5)).toHaveText('JunJordan')
+      await expect(cards.nth(3).locator('.name')).toHaveText('Sam')
+      await expect(cards.nth(5).locator('.name')).toHaveText('Jordan')
+      await expect(cards.nth(3).locator('.count')).toHaveText(/^\d[\d,]*$/)
+      await expect(page.locator('.aside').first()).toHaveText('who you texted the most, month by month')
       await expectFits(page, '.month-people .name')
       await goTo(page, 'streak')
       await expect(page.getByText('62 days')).toBeVisible()
       await expect(page.getByText('in a row with Sam')).toBeVisible()
       await expect(page.getByText('Apr 1 → Jun 1')).toBeVisible()
-      await expect(page.locator('.aside, .lede, .never-missed')).toHaveCount(0)
+      await expect(page.locator('.aside, .lede, .never-missed')).toHaveCount(0) // 62 days: not long enough to move in
+      await expectFits(page)
+    })
+
+    test('a streak over 100 days says to move in together, and still fits', async ({ page }) => {
+      const wrap = makeFakeWrap('solo', { yearRound: true })
+      wrap.personStreak = { personId: 'p2', days: 150, from: '2026-03-01' }
+      await page.goto(`/#${await packWrap(wrap)}`)
+      await page.evaluate(() => document.fonts.ready)
+      await goTo(page, 'streak')
+      await expect(page.locator('.aside')).toHaveText('at this point just move in together')
+      await expect(page.locator('.never-missed')).toHaveCount(0)
+      await expectLines(page, '.aside', 2)
       await expectFits(page)
     })
 
@@ -119,10 +183,12 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
       const wrap = makeFakeWrap('solo', { yearRound: true })
       wrap.period = { from: '2026-01-01', to: '2026-11-22' }
       wrap.timing.longestStreakDays = 325
+      wrap.personStreak = { personId: 'p2', days: 200, from: '2026-01-01' } // moving in applies too, but only one line shows
       await page.goto(`/#${await packWrap(wrap)}`)
       await page.evaluate(() => document.fonts.ready)
       await goTo(page, 'streak')
       await expect(page.locator('.never-missed')).toHaveText('and you never missed a day of texting')
+      await expect(page.locator('.aside')).toHaveCount(0)
       await expectFits(page)
     })
   })
@@ -134,7 +200,7 @@ test('a link made before these stats still plays, with the months it already had
   await page.goto(`/#${await packWrap(older as Wrap)}`)
   await goTo(page, 'months')
   await expect(page.locator('.busiest')).toHaveCount(0)
-  await expect(page.locator('.aside')).toHaveCount(0)
+  await expect(page.locator('.aside')).toHaveText(/ was your yap era$/)
   await goTo(page, 'streak')
   await expect(page.getByText('in a row with at least one message')).toBeVisible()
   await expect(page.locator('[data-slide="month-people"]')).toHaveCount(0)

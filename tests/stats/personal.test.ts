@@ -107,7 +107,16 @@ describe('your person, month by month', () => {
 
   it('is all null with no 1:1 messages', () => {
     const stats = personalStats([inGroup('alex', '2026-01-10'), inGroup('me', '2026-01-10')], partners)
-    expect(stats).toEqual({ topPersonByMonth: Array(12).fill(null), personStreak: null })
+    expect(stats).toEqual({ topPersonByMonth: Array(12).fill(null), topPersonCountByMonth: Array(12).fill(0), personStreak: null })
+  })
+
+  it("counts each month's person's 1:1 messages, both ways, lined up with the months", () => {
+    const { topPersonByMonth, topPersonCountByMonth } = personalStats(
+      [dm(1, 'me', '2026-01-10'), dm(1, 'priya', '2026-01-11'), dm(1, 'priya', '2026-01-12'), dm(2, 'sam', '2026-01-12'), dm(2, 'sam', '2026-03-01')],
+      partners,
+    )
+    expect(topPersonByMonth.slice(0, 3)).toEqual(['priya', null, 'sam'])
+    expect(topPersonCountByMonth).toEqual([3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 })
 

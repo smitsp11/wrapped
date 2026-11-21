@@ -120,8 +120,8 @@ function personal(
   ids: Map<string, string>,
   people: Record<string, string>,
   display: (handle: string) => string,
-): Pick<Wrap, 'topPersonByMonth' | 'personStreak'> {
-  const { topPersonByMonth, personStreak } = personalStats(inPeriod, partners)
+): Pick<Wrap, 'topPersonByMonth' | 'topPersonCountByMonth' | 'personStreak'> {
+  const { topPersonByMonth, topPersonCountByMonth, personStreak } = personalStats(inPeriod, partners)
   const extra = new Map<string, string>()
   let next = [...ids.values()].filter((id) => /^p\d+$/.test(id)).length + 1
   const idFor = (handle: string) => {
@@ -134,7 +134,7 @@ function personal(
   }
   const months = topPersonByMonth.map((handle) => (handle === null ? null : idFor(handle)))
   return {
-    ...(months.some((id) => id !== null) ? { topPersonByMonth: months } : {}),
+    ...(months.some((id) => id !== null) ? { topPersonByMonth: months, topPersonCountByMonth } : {}),
     ...(personStreak ? { personStreak: { personId: idFor(personStreak.person), days: personStreak.days, from: personStreak.from } } : {}),
   }
 }

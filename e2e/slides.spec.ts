@@ -344,44 +344,76 @@ for (const [width, height] of [[390, 844], [300, 600], [1440, 900]] as const) {
   })
 }
 
+/** The demo with every group caption switched on: they make the captions longest. */
+function groupWithQuips(): Wrap {
+  const wrap = demo()
+  wrap.volume.total = 1000
+  wrap.volume.byPerson = { p1: 600, p2: 100, p3: 100, me: 200 } // "(it's not close)"
+  wrap.timing.byHour = wrap.timing.byHour.map((_, hour) => (hour === 2 ? 500 : 5)) // "(go to sleep 😭)"
+  wrap.timing.longestStreakDays = 150 // "at this point just move in together, all of you"
+  wrap.replies.medianReplyMinutesByPerson.p1 = 0.5 // "Riley does not have a life"
+  // The demo already has "Jordan writes essays, the rest of you text" and "May was the chat's yap era".
+  return wrap
+}
+
+/** My year with every solo caption switched on, and long names on the month-by-month cards. */
+function soloWithQuips(): Wrap {
+  const wrap = makeFakeWrap('solo', { yearRound: true })
+  wrap.volume.byPerson = { ...wrap.volume.byPerson, p1: 900 } // "(it's not close)"
+  wrap.timing.byHour = wrap.timing.byHour.map((_, hour) => (hour === 6 ? 500 : 5)) // "(early birds fr)"
+  wrap.people.p1 = 'Valentinovich Okonkwo'
+  wrap.topPersonByMonth = ['p1', 'p1', 'p1', 'p2', 'p2', 'p1', 'p3', 'p3', 'p3', 'p3', 'p2', 'p1'] // "Jul–Oct was the … era"
+  wrap.personStreak = { personId: 'p2', days: 150, from: '2026-03-01' } // "at this point just move in together"
+  wrap.replies.medianReplyMinutesByPerson.me = 0.3 // "you do not have a life"
+  wrap.replies.repliesByPerson.me = 99
+  return wrap
+}
+
 // A phone (390) and the preview in the maker (300). The quips are switched on, since they make the captions longest.
 for (const [width, height] of [[390, 844], [300, 600]] as const) {
   test(`every slide's caption fits on two lines above what it describes (${width}×${height})`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.setViewportSize({ width, height })
-    const wrap = demo()
-    wrap.volume.total = 1000
-    wrap.volume.byPerson = { p1: 600, p2: 100, p3: 100, me: 200 } // "(it's not close)"
-    wrap.timing.byHour = wrap.timing.byHour.map((_, hour) => (hour === 2 ? 500 : 5)) // "(way past bedtime)"
-    await page.goto(`/#${await packWrap(wrap)}`)
-    const slide = page.getByTestId('slide')
-    const captioned: string[] = []
-    for (let i = 0; i < 40; i++) {
-      const id = (await currentSlide(page))!
-      const asides = await slide.evaluate((el) => {
-        const first = el.querySelector('.stage > *')?.getBoundingClientRect()
-        return [...el.querySelectorAll<HTMLElement>('.aside')].map((aside) => {
-          const box = aside.getBoundingClientRect()
-          const quip = aside.querySelector('.quip')
-          return {
-            text: aside.innerText,
-            lines: Math.round(aside.offsetHeight / parseFloat(getComputedStyle(aside).lineHeight)),
-            clear: !first || box.bottom <= first.top,
-            quipBoxes: quip ? quip.getClientRects().length : 1,
-          }
+    // On the short page the era stands in for Your person's subtitle.
+    const solo = ['volume', 'top-chats', ...(height > 700 ? ['month-people'] : []), 'month-people', 'hours', 'months', 'streak', 'replies', 'outro']
+    for (const [name, wrap, expected] of [
+      ['group', groupWithQuips(), ['volume', 'hours', 'months', 'streak', 'replies', 'texting-styles', 'outro']],
+      ['solo', soloWithQuips(), solo],
+    ] as const) {
+      await page.goto('about:blank')
+      await page.goto(`/#${await packWrap(wrap)}`)
+      await page.evaluate(() => document.fonts.ready)
+      const slide = page.getByTestId('slide')
+      const captioned: string[] = []
+      for (let i = 0; i < 40; i++) {
+        const id = (await currentSlide(page))!
+        const asides = await slide.evaluate((el) => {
+          const first = el.querySelector('.stage > *')?.getBoundingClientRect()
+          return [...el.querySelectorAll<HTMLElement>('.aside')].filter((aside) => aside.offsetHeight > 0).map((aside) => {
+            const box = aside.getBoundingClientRect()
+            const quip = aside.querySelector('.quip')
+            return {
+              text: aside.innerText,
+              lines: Math.round(aside.offsetHeight / parseFloat(getComputedStyle(aside).lineHeight)),
+              clear: !first || box.bottom <= first.top,
+              quipBoxes: quip ? quip.getClientRects().length : 1,
+            }
+          })
         })
-      })
-      for (const aside of asides) {
-        captioned.push(id)
-        expect(aside.lines, `"${aside.text}" on ${id}`).toBeLessThanOrEqual(2)
-        expect(aside.clear, `"${aside.text}" runs into ${id}`).toBe(true)
-        expect(aside.quipBoxes, `the quip in "${aside.text}" splits`).toBe(1)
+        for (const aside of asides) {
+          captioned.push(id)
+          expect(aside.lines, `"${aside.text}" on ${id}`).toBeLessThanOrEqual(2)
+          expect(aside.clear, `"${aside.text}" runs into ${id}`).toBe(true)
+          expect(aside.quipBoxes, `the quip in "${aside.text}" splits`).toBe(1)
+        }
+        const over = await slide.evaluate((el) => ({ down: el.scrollHeight - el.clientHeight, across: el.scrollWidth - el.clientWidth }))
+        expect(over, `${name}: ${id} scrolls`).toEqual({ down: 0, across: 0 })
+        if (id === 'summary') break
+        await page.keyboard.press('ArrowRight')
       }
-      if (id === 'summary') break
-      await page.keyboard.press('ArrowRight')
+      // Only short captions are left; the rest of the pages have none.
+      expect(captioned, name).toEqual(expected)
     }
-    // Only short captions are left; the rest of the pages have none.
-    expect(captioned).toEqual(['volume', 'hours', 'texting-styles', 'outro'])
   })
 }
 
@@ -395,7 +427,7 @@ for (const [width, height] of [[390, 844], [300, 600]] as const) {
     quips.volume.byPerson = { p1: 600, p2: 100, p3: 100, p4: 50, me: 150 } // "(it's not close)" over five names
     quips.timing.byHour = quips.timing.byHour.map((_, hour) => (hour === 2 ? 500 : 5))
     quips.timing.longestStreakDays = 150
-    for (const [name, wrap] of [['group', demo()], ['group with quips', quips], ['solo', makeFakeWrap('solo')]] as const) {
+    for (const [name, wrap] of [['group', demo()], ['group with quips', quips], ['solo', makeFakeWrap('solo')], ['solo with quips', soloWithQuips()]] as const) {
       await page.goto('about:blank')
       await page.goto(`/#${await packWrap(wrap)}`)
       await page.evaluate(() => document.fonts.ready)
@@ -495,3 +527,25 @@ test('the demo shows everyone\'s texting style on one page, with nothing cut off
   const fits = await slide.evaluate((el) => el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth)
   expect(fits).toBe(true)
 })
+
+// The maker's 300×600 preview: the Paragraph Texter's caption stays up to seven people, and gives way at eight.
+for (const people of [7, 8]) {
+  test(`texting styles for ${people} people fit the 300×600 preview, caption and all`, async ({ page }) => {
+    await page.setViewportSize({ width: 300, height: 600 })
+    const wrap = demo()
+    for (let i = 7; i <= people; i++) {
+      wrap.people[`p${i}`] = `Extra Person${i}`
+      wrap.volume.byPerson[`p${i}`] = 10
+      wrap.texting!.medianWordsByPerson[`p${i}`] = 3
+      wrap.texting!.textsPerTurnByPerson[`p${i}`] = 1.2
+    }
+    await page.goto(`/#${await packWrap(wrap)}`)
+    await page.evaluate(() => document.fonts.ready)
+    const slide = page.getByTestId('slide')
+    for (let i = 0; i < 40 && (await currentSlide(page)) !== 'texting-styles'; i++) await page.keyboard.press('ArrowRight')
+    await expect(slide.locator('.styles li')).toHaveCount(people)
+    if (people === 7) await expect(slide.locator('.aside')).toHaveText('Jordan writes essays, the rest of you text')
+    else await expect(slide.locator('.aside')).toBeHidden()
+    expect(await slide.evaluate((el) => ({ down: el.scrollHeight - el.clientHeight, across: el.scrollWidth - el.clientWidth }))).toEqual({ down: 0, across: 0 })
+  })
+}

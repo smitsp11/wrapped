@@ -248,6 +248,7 @@ describe('buildWrap', () => {
       expect(Object.keys(wrap.people)).toEqual(['p1', 'p2', 'p3', 'p4', 'p5', 'me', 'others', 'p6'])
       expect(wrap.people.p6).toBe('Priya Shah')
       expect(wrap.topPersonByMonth).toEqual([null, null, 'p6', null, null, null, null, null, null, null, null, null])
+      expect(wrap.topPersonCountByMonth).toEqual([0, 0, march.length, 0, 0, 0, 0, 0, 0, 0, 0, 0])
       expect(wrap.personStreak).toEqual({ personId: 'p6', days: 3, from: '2026-03-01' })
       // Priya is still part of "Everyone else" in the other stats.
       expect(wrap.volume.byPerson.p6).toBeUndefined()
@@ -278,9 +279,9 @@ describe('buildWrap', () => {
 
     it('leaves them out of a group wrap, and of a solo wrap with no 1:1 messages', () => {
       const group = buildWrap([...march], { mode: 'group', title: 'Test', ...period, nameFor: names })
-      expect('topPersonByMonth' in group || 'personStreak' in group).toBe(false)
+      expect('topPersonByMonth' in group || 'topPersonCountByMonth' in group || 'personStreak' in group).toBe(false)
       const noDms = buildWrap(march, { mode: 'solo', title: 'Test', ...period, nameFor: names, chats: [] })
-      expect('topPersonByMonth' in noDms || 'personStreak' in noDms).toBe(false)
+      expect('topPersonByMonth' in noDms || 'topPersonCountByMonth' in noDms || 'personStreak' in noDms).toBe(false)
     })
 
     it('carries a comparison with last year it is given, and none otherwise', () => {

@@ -85,11 +85,17 @@ describe('parseWrap', () => {
 
   it('accepts the newer stats, and a link made before them', () => {
     const solo = makeFakeWrap('solo', { yearRound: true })
-    expect(solo.topPersonByMonth && solo.personStreak && solo.vsLastYear && solo.timing.busiestDay).toBeTruthy()
+    expect(solo.topPersonByMonth && solo.topPersonCountByMonth && solo.personStreak && solo.vsLastYear && solo.timing.busiestDay).toBeTruthy()
     expect(parseWrap(JSON.parse(JSON.stringify(solo)))).toEqual(solo)
-    const { topPersonByMonth: _m, personStreak: _s, vsLastYear: _v, ...older } = JSON.parse(JSON.stringify(solo))
+    const { topPersonByMonth: _m, topPersonCountByMonth: _c, personStreak: _s, vsLastYear: _v, ...older } = JSON.parse(JSON.stringify(solo))
     delete older.timing.busiestDay
     expect(() => parseWrap(older)).not.toThrow()
+  })
+
+  it("accepts a link with each month's person but not their counts (made before the counts existed)", () => {
+    const { topPersonCountByMonth: _c, ...older } = JSON.parse(JSON.stringify(makeFakeWrap('solo', { yearRound: true })))
+    expect(parseWrap(older).topPersonByMonth).toHaveLength(12)
+    expect(parseWrap(older).topPersonCountByMonth).toBeUndefined()
   })
 
   it.each([
@@ -97,6 +103,9 @@ describe('parseWrap', () => {
     ['a busiest day count that is a string', (w: any) => (w.timing.busiestDay = { date: '2026-03-14', messages: '3' })],
     ['11 months of people', (w: any) => (w.topPersonByMonth = Array(11).fill(null))],
     ['a month person that is not a person id', (w: any) => (w.topPersonByMonth = [...Array(11).fill(null), 'toString'])],
+    ['11 month counts', (w: any) => (w.topPersonCountByMonth = Array(11).fill(3))],
+    ['a month count that is a string', (w: any) => (w.topPersonCountByMonth = [...Array(11).fill(0), '412'])],
+    ['a negative or fractional month count', (w: any) => (w.topPersonCountByMonth = [...Array(10).fill(0), -1, 0.5])],
     ['a streak with a handle for a person', (w: any) => (w.personStreak = { personId: '+14165550101', days: 3, from: '2026-01-01' })],
     ['a streak without a start date', (w: any) => (w.personStreak = { personId: 'p1', days: 3 })],
     ['a last-year percent that is a string', (w: any) => (w.vsLastYear = { year: 2025, percent: '18' })],
