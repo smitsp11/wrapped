@@ -31,7 +31,7 @@
 
 <p align="center">
   <a href="https://wrapped.smitpatel.xyz/#demo">
-    <img src="docs/images/demo.gif" width="320" alt="A phone tapping through the wrap of a made-up group chat called Poker Night: 22,938 messages on a taped polaroid with 'That's about 71 texts a day', a 'Who talked the most' bar chart led by Riley Park at 35.3%, everyone's texting style (Spray n Pray, One and Done, Nonchalant, Paragraph Texter), three greatest-hit quotes, one opened to show the conversation around Alex's 'engrave sam's name on it now, save time' with the quote lifted out, a stamped Comedian award for Sam Rivera, and the 'our 2026 in texts' summary card to save.">
+    <img src="docs/images/demo.gif" width="320" alt="A phone tapping through the wrap of a made-up group chat called Poker Night: 22,938 messages on a taped polaroid with 'That's about 71 texts a day', Peak month May with 'May was the chat's yap era' and 'what happened on May 21?' by the busiest day, everyone's texting style under 'Jordan writes essays, the rest of you text', three greatest-hit quotes, one opened to show the conversation around Alex's 'engrave sam's name on it now, save time' with the quote lifted out, a stamped Comedian award for Sam Rivera, and the 'our 2026 in texts' summary card to save.">
   </a>
   <br>
   <sub>Poker Night, a made-up group chat, tapped through on a phone. <a href="https://wrapped.smitpatel.xyz/#demo">Open the demo</a>.</sub>
