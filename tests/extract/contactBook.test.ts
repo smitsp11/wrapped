@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { ContactBook, type ContactEntry, normalizeHandle } from '../../src/extract/contactBook'
+import { ContactBook, realFirstName, type ContactEntry, normalizeHandle } from '../../src/extract/contactBook'
 import { openNodeSqlite } from '../../src/extract/sqliteNode'
 import { makeAddressBook } from '../../fixtures/makeAddressBook'
 
@@ -68,7 +68,7 @@ describe('ContactBook', () => {
     expect(names.nameFor('4165550003')).toBe('Acme')
     expect(names.nameFor('4165550004')).toBeNull()
   })
-  it('picks a short name: nickname, else first name, else the whole business name', () => {
+  it('picks a short name: the real first name, else the nickname, else the whole business name', () => {
     const names = new ContactBook([
       entry({ first: 'Robert', last: 'Smith', nickname: 'Bob', handle: '4165550001' }),
       entry({ first: 'Mary Anne', last: 'Smith', handle: '4165550002' }),
@@ -77,7 +77,7 @@ describe('ContactBook', () => {
       entry({ last: 'Rivera', handle: '4165550005' }),
       entry({ first: '  ', last: 'Lee', nickname: ' ', handle: '4165550006' }),
     ])
-    expect(names.shortNameFor('4165550001')).toBe('Bob')
+    expect(names.shortNameFor('4165550001')).toBe('Robert')
     expect(names.shortNameFor('4165550002')).toBe('Mary Anne')
     expect(names.shortNameFor('4165550003')).toBe('Pizza Pizza')
     expect(names.shortNameFor('4165550004')).toBe('Alex')
@@ -95,7 +95,7 @@ describe('ContactBook', () => {
       entry({ first: 'Robert', last: 'Smith', nickname: 'Bob', handle: '4165550001' }),
       entry({ org: 'Pizza Pizza', handle: '4165550002' }),
     ])
-    expect(names.allNames()).toEqual(['Robert Smith', 'Bob'])
+    expect(names.allNames()).toEqual(['Robert Smith', 'Robert', 'Bob'])
   })
 })
 
@@ -141,7 +141,7 @@ describe('ContactBook.fromMac', () => {
     expect(book.nameFor('jordan@example.com')).toBe('Jordan Lee')
     expect(book.nameFor('+14165550300')).toBe('Root Wins')
     expect(book.shortNameFor('+14165550101')).toBe('Alex')
-    expect(book.shortNameFor('+14165550400')).toBe('Bob')
+    expect(book.shortNameFor('+14165550400')).toBe('Robert')
     expect(book.shortNameFor('+14165550500')).toBe('Pizza Pizza')
     expect(book.skippedSources).toBe(1)
     expect(copies).toHaveLength(3)
@@ -189,3 +189,25 @@ describe('ContactBook.fromMac', () => {
     expect(() => ContactBook.fromMac(openNodeSqlite, home)).toThrow()
   })
 })
+
+describe('realFirstName', () => {
+  it('takes the real name from brackets after a nickname', () => {
+    expect(realFirstName('sour patch (mia)')).toBe('Mia')
+    expect(realFirstName('LMNOP (theo)')).toBe('Theo')
+    expect(realFirstName('big mike (Michael)')).toBe('Michael')
+  })
+  it('leaves labels, names already written as names, and plain names alone', () => {
+    expect(realFirstName('Sam (work)')).toBe('Sam (work)')
+    expect(realFirstName('mom (home)')).toBe('mom (home)')
+    expect(realFirstName('Sam Lee (Sammy)')).toBe('Sam Lee (Sammy)')
+    expect(realFirstName('Priya')).toBe('Priya')
+    expect(realFirstName('sour patch (2 mia)')).toBe('sour patch (2 mia)')
+  })
+  it('names the person by the bracket in wraps and lists, and still hides the saved name from top words', () => {
+    const book = new ContactBook([entry({ first: 'sour patch (mia)', handle: '4165550009' })])
+    expect(book.shortNameFor('4165550009')).toBe('Mia')
+    expect(book.nameFor('4165550009')).toBe('Mia')
+    expect(book.allNames()).toEqual(['Mia', 'Mia', 'sour patch (mia)'])
+  })
+})
+

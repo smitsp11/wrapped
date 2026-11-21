@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { copyDatabase } from './copyDb'
+import { copyDatabase, removeCopy } from './copyDb'
 import type { OpenSqlite, SqliteDb } from './sqlite'
 
 export type ContactEntry = {
@@ -50,19 +50,43 @@ export function normalizeHandle(handle: string): string {
   return digits.length > 10 ? digits.slice(-10) : digits
 }
 
+/** Words people put in brackets after a name that label the contact rather than name them ("Sam (work)"). */
+const BRACKET_LABELS = new Set([
+  'work', 'home', 'mobile', 'cell', 'old', 'new', 'mom', 'dad', 'school', 'uni', 'uoft', 'gym', 'office', 'personal',
+  'business', 'other', 'main', 'us', 'usa', 'canada', 'india', 'uk', 'whatsapp', 'ig', 'insta', 'snap', 'friend', 'cousin',
+])
+
+/**
+ * "sour patch (mia)" → "Mia", "LMNOP (theo)" → "Theo": a first name saved as a nickname with the real name in
+ * brackets at the end. Only when the bracket holds one name-like word (not a label like "(work)") and the part before
+ * it isn't already written like a name ("Sam Lee (work)" stays as it is). Otherwise the first name is unchanged.
+ */
+export function realFirstName(first: string): string {
+  const match = /^(.*\S)\s*\(\s*([\p{L}][\p{L}'’-]*)\s*\)\s*$/u.exec(first.trim())
+  if (!match) return first.trim()
+  const [, outside, inside] = match as unknown as [string, string, string]
+  const writtenLikeAName = outside.split(/\s+/).every((word) => /^\p{Lu}\p{Ll}+$/u.test(word))
+  if (BRACKET_LABELS.has(inside.toLowerCase()) || writtenLikeAName) return first.trim()
+  return inside.charAt(0).toUpperCase() + inside.slice(1)
+}
+
 function displayName(entry: ContactEntry): string | null {
-  const full = [entry.first, entry.last].filter(Boolean).join(' ').trim()
+  const first = entry.first ? realFirstName(entry.first) : entry.first
+  const full = [first, entry.last].filter(Boolean).join(' ').trim()
   return full || entry.nickname?.trim() || entry.org?.trim() || null
 }
 
-/** For chat titles and member lists: the nickname, else the first name ("Mary Anne"), else the display name (a business: "Pizza Pizza"). */
+/**
+ * For chat titles and member lists: the real first name ("Mary Anne"), else the nickname, else the display name (a
+ * business: "Pizza Pizza"). Real names first, so a private nickname from your Contacts never shows up in a wrap.
+ */
 function shortName(entry: ContactEntry): string | null {
-  return entry.nickname?.trim() || entry.first?.trim() || displayName(entry)
+  return (entry.first ? realFirstName(entry.first) : '') || entry.nickname?.trim() || displayName(entry)
 }
 
 /** Maps Messages handles to names from the macOS Contacts databases. First match wins: the local database, then synced sources in name order. */
 export class ContactBook {
-  private readonly names = new Map<string, { full: string; short: string; isPerson: boolean }>()
+  private readonly names = new Map<string, { full: string; short: string; nickname: string | null; isPerson: boolean }>()
   /** every card's nickname and first name per handle, from all sources in order (for finding your own name) */
   private readonly given = new Map<string, string[]>()
 
@@ -78,7 +102,7 @@ export class ContactBook {
       const full = displayName(entry)
       const short = shortName(entry)
       const isPerson = Boolean(entry.first?.trim() || entry.last?.trim() || entry.nickname?.trim())
-      if (key && full && short && !this.names.has(key)) this.names.set(key, { full, short, isPerson })
+      if (key && full && short && !this.names.has(key)) this.names.set(key, { full, short, nickname: entry.nickname?.trim() || (entry.first && realFirstName(entry.first) !== entry.first.trim() ? entry.first.trim() : null), isPerson })
       const names = [entry.nickname?.trim(), entry.first?.trim()].filter((n): n is string => Boolean(n))
       if (key && names.length > 0) this.given.set(key, [...(this.given.get(key) ?? []), ...names])
     }
@@ -136,7 +160,8 @@ export class ContactBook {
 
   /** every person's full and short name (not businesses'), so a word that is just someone's name is never a top word */
   allNames(): string[] {
-    return [...this.names.values()].filter((n) => n.isPerson).flatMap(({ full, short }) => [full, short])
+    // Nicknames too: they never show in a wrap, but one could still turn up as a top word.
+    return [...this.names.values()].filter((n) => n.isPerson).flatMap(({ full, short, nickname }) => (nickname && nickname !== short ? [full, short, nickname] : [full, short]))
   }
 
   /** number of handles (phones and emails) with a name */
@@ -164,7 +189,7 @@ export function readDatabaseCopy<T>(file: string, openSqlite: OpenSqlite, read: 
     } catch {
       // keep the original error (or the result), not a failure to close
     } finally {
-      fs.rmSync(copy.dir, { recursive: true, force: true })
+      removeCopy(copy.dir)
     }
   }
 }

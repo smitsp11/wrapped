@@ -178,7 +178,7 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
       <h1 class="hand-title">${greeting}</h1>
       <div class="stage">
         <div class="polaroid taped">
-          <div class="photo"><p class="big" style="--len:${total.length}">${total}</p><p>messages</p></div>
+          <div class="photo"><p class="big" style="--len:${total.length}">${total}</p><p>${wrap.volume.total === 1 ? 'message' : 'messages'}</p></div>
           <p class="hand">${escapeHtml(periodLabel(wrap.period))}</p>
         </div>
         ${perDay ? `<p class="per-day">${escapeHtml(perDay)}</p>` : ''}
@@ -306,7 +306,9 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
     })
   }
 
-  // Friends who watch a wrap are who make the next one, so the outro has one clear ask, plus Watch again.
+  // The summary card to save (your share card, or the group's), then the outro: the story ends on "That's a wrap",
+  // with its one clear ask (friends who watch a wrap are who make the next one) and Watch again.
+  slides.push(summarySlide(wrap))
   // "/" is the landing page on whatever site is showing the wrap.
   slides.push({
     id: 'outro',
@@ -317,11 +319,9 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
           <p class="hand">make one for your group chat</p>
           <a class="button" href="/">Make yours</a>
         </div>
-        <a class="link" href="#" data-restart>Watch again</a>
+        <a class="link watch-again" href="#" data-restart>Watch again</a>
       </div>`,
   })
-  // The last page: a summary card to save (your share card, or the group's), after the outro's ask.
-  slides.push(summarySlide(wrap))
   return slides
 }
 

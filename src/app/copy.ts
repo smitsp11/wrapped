@@ -25,10 +25,16 @@ function typeWrapped(onPath: boolean): string {
   return onPath ? 'Type  wrapped' : 'In a new window, type  wrapped'
 }
 
-/** The terminal's status once the page is open. The rest happens in the browser. */
-export function openLines(url: string): string[] {
-  return [`iMessage Wrapped is open in your browser: ${url}`, 'Keep this window open. Press o to reopen the page, q to quit.']
+/**
+ * The terminal's status once the page is open. The rest happens in the browser. `keys`: o and q can be read here; when
+ * the input isn't a keyboard they can't, so they aren't offered.
+ */
+export function openLines(url: string, keys = true): string[] {
+  return [`iMessage Wrapped is open in your browser: ${url}`, keys ? 'Keep this window open. Press o to reopen the page, q to quit.' : 'Keep this window open.']
 }
+
+/** A question needs an answer from the keyboard, and the input isn't one (piped or redirected). */
+export const NEEDS_TERMINAL = 'Run  wrapped  in Terminal to continue.'
 
 /** The terminal's last line. */
 export function stoppedLine(reason: StopReason, onPath = true): string {
@@ -52,14 +58,18 @@ export function updatedLine(version: string | null): string {
 }
 export const UPDATE_FAILED = "The update didn't finish, so nothing changed. Check your internet and try  wrapped update  again."
 
+/** The first line before System Settings opens: why it's about to ask. Calm, and it promises nothing it can't keep. */
+export const ACCESS_WHY = 'Reads your Messages on this Mac to make your wrap.'
+
 /**
  * Printed just before the Full Disk Access page opens, so it's read before System Settings covers the terminal.
- * `resume`: the marker is written and the startup line will start the app again after "Quit & Reopen" (resume.ts).
+ * It starts with why (ACCESS_WHY). `resume`: the marker is written and the startup line will start the app again after "Quit & Reopen" (resume.ts).
  * The last line is the hint for when the app isn't in the list.
  */
 export function accessSteps(terminal: string, { resume, inTmux = false }: { resume: boolean; inTmux?: boolean }): string[] {
   const folder = terminal === 'Terminal' ? 'Applications → Utilities' : 'Applications'
   return [
+    ACCESS_WHY,
     resume
       ? `Turn on ${terminal} in the window that's about to open, then click "Quit & Reopen". Wrapped picks up by itself.`
       : `Turn on ${terminal} in the window that's about to open, click "Quit & Reopen", then type  wrapped  again.`,
@@ -75,6 +85,10 @@ export function stillNoAccess(terminal: string): string {
 
 export const MISSING_DB =
   "Messages isn't set up on this Mac. Sign in to Messages, turn on Messages in iCloud (Messages → Settings → iMessage), wait for it to sync, then type  wrapped  again."
+
+/** The database opened but isn't one Messages wrote (empty, damaged, or another file passed with --db). */
+export const NOT_A_MESSAGES_DB =
+  "That file isn't a Messages database Wrapped can read. It may be empty or damaged. Without --db, Wrapped reads Messages on this Mac."
 
 /** Shown when Messages can't be read and we didn't just walk through accessSteps (e.g. the --check run). */
 export function noAccess(terminal: string): string {

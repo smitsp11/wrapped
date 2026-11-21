@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { MISSING_DB } from '../../src/app/copy'
-import { MissingDatabaseError, NoFullDiskAccessError } from '../../src/errors'
+import { MISSING_DB, NOT_A_MESSAGES_DB } from '../../src/app/copy'
+import { MissingDatabaseError, NoFullDiskAccessError, NotAMessagesDatabaseError } from '../../src/errors'
 import { MessagesDb } from '../../src/extract/messagesDb'
 import type { OpenSqlite } from '../../src/extract/sqlite'
 import { openNodeSqlite } from '../../src/extract/sqliteNode'
@@ -26,6 +26,33 @@ afterAll(() => {
 })
 
 describe('MessagesDb', () => {
+  it("says plainly when the file isn't a Messages database (empty, damaged, or another database), and leaves no copy", () => {
+    const bad = fs.mkdtempSync(path.join(os.tmpdir(), 'not-messages-'))
+    const empty = path.join(bad, 'empty.db')
+    fs.writeFileSync(empty, '')
+    const junk = path.join(bad, 'junk.db')
+    fs.writeFileSync(junk, 'this is not sqlite at all, just some text '.repeat(40))
+    const other = path.join(bad, 'other.db')
+    new Database(other).exec('CREATE TABLE notes (id INTEGER)').close()
+    // Copies go to a temp folder of this test's own (os.tmpdir() reads TMPDIR), so it can check none is left.
+    const realTmp = process.env.TMPDIR
+    const copies = path.join(bad, 'tmp')
+    fs.mkdirSync(copies)
+    process.env.TMPDIR = copies
+    try {
+      for (const file of [empty, junk, other]) {
+        const open = () => MessagesDb.open(openNodeSqlite, file)
+        expect(open, file).toThrow(NotAMessagesDatabaseError)
+        expect(open, file).toThrow(NOT_A_MESSAGES_DB)
+      }
+      expect(fs.readdirSync(copies)).toEqual([])
+    } finally {
+      if (realTmp === undefined) delete process.env.TMPDIR
+      else process.env.TMPDIR = realTmp
+      fs.rmSync(bad, { recursive: true, force: true })
+    }
+  })
+
   it('lists chats, busiest first', () => {
     const chats = db.listChats()
     expect(chats.map((c) => [c.id, c.name, c.isGroup, c.messageCount])).toEqual([

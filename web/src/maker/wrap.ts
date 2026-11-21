@@ -21,7 +21,8 @@ function facts(wrap: Wrap): string {
 }
 
 /**
- * One wrap: the phone preview, and beside it the title and one Send button, then after sending, "Now post yours".
+ * One wrap: the phone preview, and beside it the title and one Send button. After sending a group wrap, a small
+ * "Bonus" button offers the card about your own year; My year shows that card straight away.
  * On a phone they stack: title, preview, Send. The link holds the whole
  * wrap, less any quote that looks like a phone number or email, and the preview plays that same link.
  * `isCurrent` turns false once the user has moved on, so a slow pack never paints over the next page.
@@ -59,6 +60,10 @@ export async function renderWrap(app: HTMLElement, state: State, id: string, isC
     </section>`
   const slot = <T extends HTMLElement = HTMLElement>(name: string) => app.querySelector<T>(`[data-${name}]`)!
   const sendButton = slot<HTMLButtonElement>('send')
+  // The focus ring on the preview (see .phone.focused): this page loses focus to it, then gets it back.
+  const frame = app.querySelector<HTMLIFrameElement>('iframe.phone')!
+  window.onblur = () => setTimeout(() => frame.classList.toggle('focused', document.activeElement === frame))
+  window.onfocus = () => frame.classList.remove('focused')
 
   /** The line under the button after a send. */
   const drawSent = ({ copied, error }: Sent) => {
@@ -99,7 +104,14 @@ export async function renderWrap(app: HTMLElement, state: State, id: string, isC
     const post = slot('post')
     if (!post.hidden) return
     post.hidden = false
-    mountPost(post, state, isCurrent)
+    // My year is already made, so its card shows. After a group wrap, the card (which may build My year first) is a bonus
+    // you ask for: nothing is built until you click.
+    if (!group) {
+      mountPost(post, state, isCurrent)
+      return
+    }
+    post.innerHTML = '<button class="link bonus" data-bonus>Bonus: make a card about your own year →</button>'
+    post.querySelector<HTMLButtonElement>('[data-bonus]')!.addEventListener('click', () => mountPost(post, state, isCurrent, true), { once: true })
   }
 
   app.onclick = (event) => {

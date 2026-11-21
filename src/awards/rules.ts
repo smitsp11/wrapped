@@ -43,11 +43,15 @@ type Rule = {
   threshold: (qualifiers: number) => number
   /** The number shown on the slide. */
   display: (raw: number) => number
-  label: (value: number) => string
+  /** The award's line. `ctx` has the winner, the stats and the mode, for a line that counts something else. */
+  label: (value: number, ctx: { person: string; stats: AwardInputs; mode: 'group' | 'solo' }) => string
   minPeople?: number
   /** Skipped in solo wraps. */
   groupOnly?: boolean
 }
+
+/** "1,012": every number on an award reads like the rest of the wrap. */
+const num = (n: number) => n.toLocaleString('en-US')
 
 const share = (person: string, s: AwardInputs) => (s.volume.byPerson[person] ?? 0) / s.volume.total
 
@@ -61,7 +65,7 @@ const RULES: Rule[] = [
   {
     id: 'main-character', title: 'Main Character', pick: 'max', groupOnly: true,
     raw: share, threshold: () => 0, display: percent,
-    label: (v) => `${v}% of all messages`,
+    label: (v) => `${num(v)}% of all messages`,
   },
   {
     id: 'ghost', title: 'The Ghost', pick: 'max',
@@ -72,33 +76,37 @@ const RULES: Rule[] = [
   {
     id: 'starter', title: 'The Starter', pick: 'max',
     raw: (p, s) => s.starters.startsByPerson[p] ?? 0, threshold: () => MIN_COUNT_AWARD, display: (r) => r,
-    label: (v) => `started ${v} conversations`,
+    label: (v) => `started ${num(v)} ${v === 1 ? 'conversation' : 'conversations'}`,
   },
   {
     id: 'comedian', title: 'The Comedian', pick: 'max',
     raw: (p, s) => (s.reactions.laughsReceivedByPerson[p] ?? 0) / (s.volume.byPerson[p] as number),
     threshold: () => COMEDIAN_MIN_PER_100 / 100, display: percent,
-    label: (v) => `${v} ${v === 1 ? 'laugh' : 'laughs'} per 100 messages`,
+    // Won on laughs per message, but the line counts the laughs: it reads like a brag, not a formula.
+    label: (_, { person, stats, mode }) => {
+      const laughs = stats.reactions.laughsReceivedByPerson[person] ?? 0
+      return `made ${mode === 'group' ? 'the chat' : 'people'} laugh ${laughs === 1 ? 'once' : `${num(laughs)} times`}`
+    },
   },
   {
     id: 'hype', title: 'Hype Man', pick: 'max',
     raw: (p, s) => s.reactions.givenByPerson[p] ?? 0, threshold: () => MIN_COUNT_AWARD, display: (r) => r,
-    label: (v) => `gave ${v} reactions`,
+    label: (v) => `gave ${num(v)} ${v === 1 ? 'reaction' : 'reactions'}`,
   },
   {
     id: 'night-owl', title: 'Night Owl', pick: 'max',
     raw: (p, s) => s.timing.lateNightShareByPerson[p] ?? 0, threshold: () => NIGHT_OWL_MIN_SHARE, display: percent,
-    label: (v) => `${v}% of messages sent 12–5 AM`,
+    label: (v) => `${num(v)}% of messages sent 12–5 AM`,
   },
   {
     id: 'double-texter', title: 'Double Texter', pick: 'max',
     raw: (p, s) => s.starters.doubleTextsByPerson[p] ?? 0, threshold: () => MIN_COUNT_AWARD, display: (r) => r,
-    label: (v) => `${v} double texts`,
+    label: (v) => `${num(v)} double ${v === 1 ? 'text' : 'texts'}`,
   },
   {
     id: 'lurker', title: 'The Lurker', pick: 'min', minPeople: 3, groupOnly: true,
     raw: share, threshold: (n) => LURKER_MAX_OF_EVEN_SPLIT / n, display: percent,
-    label: (v) => `only ${v}% of messages`,
+    label: (v) => `only ${num(v)}% of messages`,
   },
 ]
 
@@ -138,7 +146,7 @@ export function pickAwards(stats: AwardInputs, mode: 'group' | 'solo' = 'group',
     if (!clears) continue
 
     const value = rule.display(bestRaw)
-    awards.push({ id: rule.id, title: rule.title, personId: winner.person, value, label: rule.label(value) })
+    awards.push({ id: rule.id, title: rule.title, personId: winner.person, value, label: rule.label(value, { person: winner.person, stats, mode }) })
   }
   return awards
 }

@@ -1,8 +1,7 @@
 import { expect, test, type FrameLocator, type Locator, type Page } from '@playwright/test'
 import { makeFakeWrap } from '../fixtures/fakeWrap'
 import { makePng } from '../fixtures/makePng'
-import { fitToLimit, unpackWrap } from '../src/share/pack'
-import { SHOWN_HITS } from '../src/stats/greatestHits'
+import { fitToLimit, shownHits, unpackWrap } from '../src/share/pack'
 import type { Wrap } from '../src/types'
 
 /**
@@ -14,11 +13,8 @@ const GROUP_ID = 'poker-night-1-2026'
 const SOLO_ID = 'me-2026'
 const group = makeFakeWrap('group')
 const solo = makeFakeWrap('solo')
-/** A wrap as its link holds it: only the quotes the slide shows keep their conversation (see fitToLimit). */
-const linked = (wrap: Wrap): Wrap => ({
-  ...wrap,
-  greatestHits: wrap.greatestHits.map(({ conversation, ...hit }, i) => (i < SHOWN_HITS && conversation ? { ...hit, conversation } : hit)),
-})
+/** A wrap as its link holds it: only the quotes the slide shows, as it shows them (see shownHits). */
+const linked = (wrap: Wrap): Wrap => ({ ...wrap, greatestHits: shownHits(wrap.greatestHits) })
 /** Jordan's photo in the first quote's conversation */
 const PHOTO_AT = group.greatestHits[0]!.conversation!.messages.findIndex((m) => m.media === 'photo')
 const PHOTO_ID = 'c0ffee00'.repeat(4)

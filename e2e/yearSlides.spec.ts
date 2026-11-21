@@ -62,7 +62,7 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
     })
 
     for (const months of [12, 11]) {
-      test(`long names on your person's ${months} cards are written smaller or wrap, never cut, with a count under each`, async ({ page }) => {
+      test(`names on your person's ${months} cards share one size on one line, never cut, with a count under each`, async ({ page }) => {
         const wrap = makeFakeWrap('solo', { yearRound: true })
         if (months === 11) wrap.period = { from: '2026-01-01', to: '2026-11-22' }
         Object.assign(wrap.people, { p1: 'Alexandria Moss', p2: 'Bartholomew Finch', p3: 'Valentinovich Okafor', p4: 'Maximiliano Ruiz' })
@@ -80,12 +80,14 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
             text: el.textContent!,
             lines: Math.round((el as HTMLElement).offsetHeight / parseFloat(getComputedStyle(el).lineHeight)),
             cut: el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth,
+            size: getComputedStyle(el).fontSize,
           })),
         )
         for (const name of names) {
-          expect(name.lines, `"${name.text}" takes too many lines`).toBeLessThanOrEqual(2)
+          expect(name.lines, `"${name.text}" wraps`).toBe(1)
           if (!name.text.startsWith('Wolfe')) expect(name.cut, `"${name.text}" is cut off`).toBe(false)
         }
+        expect(new Set(names.map((n) => n.size)).size, 'every name is the same size').toBe(1)
         await expect(page.locator('.aside').first()).toHaveText('who you texted the most, month by month')
         await expectFits(page)
       })
@@ -137,6 +139,8 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
         await goTo(page, 'summary')
         const slide = page.getByTestId('slide')
         await expect(slide.locator('.postage-label')).toHaveText('top emoji')
+        // Readable on a small phone too: at least 9px.
+        expect(await slide.locator('.postage-label').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(9)
         await expect(slide).not.toContainText('most used')
         const at = await slide.evaluate((el) => {
           const stamp = el.querySelector('.postage > span')!
@@ -204,8 +208,8 @@ test('a link made before these stats still plays, with the months it already had
   await goTo(page, 'streak')
   await expect(page.getByText('in a row with at least one message')).toBeVisible()
   await expect(page.locator('[data-slide="month-people"]')).toHaveCount(0)
-  await goTo(page, 'outro')
   await goTo(page, 'summary')
+  await goTo(page, 'outro')
 })
 
 test('the demo link stays well under the limit', async () => {

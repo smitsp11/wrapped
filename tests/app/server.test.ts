@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAKER_CSP, SITE_CSP } from '../../src/csp'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
 import { counter } from '../../src/app/count'
 import { EmptyPeriodError } from '../../src/errors'
@@ -147,6 +148,14 @@ describe('local server', () => {
     for (const p of ['/..%2f..%2fetc%2fpasswd', '/%2e%2e%2f%2e%2e%2fetc%2fpasswd', '/%2e%2e%2fweb-evil%2fx.txt']) {
       expect((await handle(new Request(ORIGIN + p), deps)).status, p).toBe(404)
     }
+  })
+  it("sends the site's security headers with its pages, but lets the maker frame its own preview", async () => {
+    const res = await handle(new Request(ORIGIN + '/?t=tok'), deps)
+    expect(res.headers.get('content-security-policy')).toBe(MAKER_CSP)
+    expect(MAKER_CSP).toContain("frame-ancestors 'self'")
+    expect(MAKER_CSP).toBe(SITE_CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'"))
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer')
   })
   it('builds the solo wrap', async () => {
     const built = await (await handle(api('/api/build', { method: 'POST', body: JSON.stringify({ kind: 'solo' }) }), deps)).json()

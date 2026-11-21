@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BrokenLinkError, NewerVersionError, WrappedError } from '../../src/errors'
-import { MAX_LINK_CHARS, fitToLimit, packWrap, unpackWrap } from '../../src/share/pack'
-import { MAX_CONVO_MESSAGES, SHOWN_HITS } from '../../src/stats/greatestHits'
+import { MAX_LINK_CHARS, fitToLimit, packWrap, shownHits, unpackWrap } from '../../src/share/pack'
+import { MAX_CONVO_MESSAGES, MAX_QUOTE_LENGTH, SHOWN_HITS, SHOWN_QUOTE_LENGTH, shortQuote } from '../../src/stats/greatestHits'
 import type { Wrap } from '../../src/types'
 import { makeFakeWrap } from '../../fixtures/fakeWrap'
 
@@ -31,22 +31,45 @@ describe('share links', () => {
     expect(await unpackWrap(packed)).toEqual(wrap)
   })
 
-  it('drops the least-reacted quotes until the link fits', async () => {
-    const hits = Array.from({ length: 10 }, (_, i) => ({
-      senderId: 'p1', text: noise(i + 1, 280), sentAt: '2026-01-01T00:00:00.000Z', reactions: 10 - i, laughs: 0,
+  it(`packs only the ${SHOWN_HITS} quotes the slide shows, each cut to what the slide shows`, async () => {
+    const hits = Array.from({ length: 6 }, (_, i) => ({
+      senderId: 'p1', text: `quote ${i} ${'and so on '.repeat(20)}`.trim(), sentAt: '2026-01-01T00:00:00.000Z', reactions: 10 - i, laughs: 0,
     }))
-    const { packed, dropped } = await fitToLimit({ ...wrap, greatestHits: hits }, 3000)
-    expect(packed.length).toBeLessThanOrEqual(3000)
-    expect(dropped.length).toBeGreaterThan(0)
+    const { packed, dropped } = await fitToLimit({ ...wrap, greatestHits: hits })
+    expect(dropped).toEqual([])
     const kept = (await unpackWrap(packed)).greatestHits
-    expect([...kept, ...dropped]).toEqual(hits)
+    expect(kept.map((h) => h.reactions)).toEqual([10, 9, 8])
+    for (const [i, hit] of kept.entries()) {
+      expect(hit.text).toBe(shortQuote(hits[i]!.text))
+      expect(Array.from(hit.text).length).toBeLessThanOrEqual(SHOWN_QUOTE_LENGTH)
+      expect(hit.text.endsWith('…')).toBe(true)
+    }
+    expect(shownHits(hits)).toEqual(kept)
   })
 
-  it('carries the conversation around each shown quote, and plays a link made before conversations existed', async () => {
+  it('drops the least-reacted shown quotes until the link fits', async () => {
+    const hits = Array.from({ length: 10 }, (_, i) => ({
+      senderId: 'p1', text: noise(i + 1, 120), sentAt: '2026-01-01T00:00:00.000Z', reactions: 10 - i, laughs: 0,
+    }))
+    const empty = (await packWrap({ ...wrap, greatestHits: [] })).length
+    const { packed, dropped } = await fitToLimit({ ...wrap, greatestHits: hits }, empty + 150)
+    expect(dropped.length).toBeGreaterThan(0)
+    const kept = (await unpackWrap(packed)).greatestHits
+    expect([...kept, ...dropped]).toEqual(shownHits(hits))
+  })
+
+  it('carries the conversation around each shown quote, each message at most 280 characters', async () => {
     expect(wrap.greatestHits.every((h) => h.conversation !== undefined)).toBe(true)
-    // Only the quotes the slide shows keep their conversation.
-    const shown = { ...wrap, greatestHits: wrap.greatestHits.map(({ conversation, ...hit }, i) => (i < SHOWN_HITS ? { ...hit, conversation } : hit)) }
-    expect(await unpackWrap((await fitToLimit(wrap)).packed)).toEqual(shown)
+    const inLink = await unpackWrap((await fitToLimit(wrap)).packed)
+    expect(inLink).toEqual({ ...wrap, greatestHits: shownHits(wrap.greatestHits) })
+    expect(inLink.greatestHits.every((h) => h.conversation !== undefined)).toBe(true)
+    const long = { ...wrap.greatestHits[0]!.conversation!.messages[0]!, text: 'x'.repeat(MAX_QUOTE_LENGTH) + '…' }
+    for (const hit of inLink.greatestHits) {
+      for (const m of hit.conversation!.messages) expect(Array.from(m.text).length).toBeLessThanOrEqual(Array.from(long.text).length)
+    }
+  })
+
+  it('plays a link made before conversations existed', async () => {
     const old = { ...wrap, greatestHits: wrap.greatestHits.map(({ conversation: _, ...hit }) => hit) }
     expect(await unpackWrap(await packWrap(old))).toEqual(old)
   })
@@ -63,17 +86,17 @@ describe('share links', () => {
     }))
     const withConvo = async (packed: string) => (await unpackWrap(packed)).greatestHits.map((h) => h.conversation !== undefined)
 
-    it(`keeps a conversation only on the ${SHOWN_HITS} quotes the slide shows`, async () => {
+    it(`keeps the ${SHOWN_HITS} quotes the slide shows, each with its conversation`, async () => {
       const { packed, dropped } = await fitToLimit({ ...wrap, greatestHits: hits })
       expect(dropped).toEqual([])
-      expect(await withConvo(packed)).toEqual([true, true, true, false, false])
+      expect(await withConvo(packed)).toEqual([true, true, true])
     })
 
-    it('drops quotes the slide never shows, then conversations from the least-reacted, before any shown quote', async () => {
+    it('drops conversations from the least-reacted quote first, before any quote', async () => {
       const { conversation: _, ...third } = hits[2]!
       const twoConvos = (await packWrap({ ...wrap, greatestHits: [hits[0]!, hits[1]!, third] })).length
       const { packed, dropped } = await fitToLimit({ ...wrap, greatestHits: hits }, twoConvos)
-      expect(dropped.map((h) => h.reactions)).toEqual([7, 6])
+      expect(dropped).toEqual([])
       expect(await withConvo(packed)).toEqual([true, true, false])
       const tight = await fitToLimit({ ...wrap, greatestHits: hits }, (await packWrap({ ...wrap, greatestHits: [] })).length + 400)
       expect((await unpackWrap(tight.packed)).greatestHits.every((h) => h.conversation === undefined)).toBe(true)

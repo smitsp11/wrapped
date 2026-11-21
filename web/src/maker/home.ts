@@ -26,14 +26,17 @@ export function renderHome(app: HTMLElement, state: State): void {
   let status = ''
 
   const watch = (wrapId: string) => (location.hash = `#/wrap/${wrapId}`)
-  /** `name` labels the buttons for screen readers ("Wrap Chat 1", "Remake Chat 1"); `wrapVerb` is null when the text says it. */
+  /**
+   * `name` labels the buttons for screen readers ("Wrap Chat 1", "Watch Chat 1", "Update Chat 1 with new messages");
+   * `wrapVerb` is null when the text says it.
+   */
   const action = (wrapId: string, made: boolean, makeLabel: string, data: string, name: string, wrapVerb: string | null) => {
     const disabled = making ? ' disabled' : ''
     const id = escapeHtml(wrapId)
-    // A wrap already made can be watched, or remade with the latest messages (and this version of the app): a quiet link.
+    // A wrap already made can be watched, or updated with the latest messages (and this version of the app): a quiet link.
     if (made) {
-      return `<span class="made-actions"><button class="made" data-watch="${id}">Made ✓ · Watch</button>` +
-        `<button class="link remake" data-make="${id}" ${data} aria-label="Remake ${escapeHtml(name)}"${disabled}>${making === wrapId ? 'remaking…' : 'remake'}</button></span>`
+      return `<span class="made-actions"><button class="made" data-watch="${id}" aria-label="Made ✓ · Watch ${escapeHtml(name)}">Made ✓ · Watch</button>` +
+        `<button class="link update" data-make="${id}" ${data} aria-label="Update ${escapeHtml(name)} with new messages"${disabled}>${making === wrapId ? 'updating…' : 'update'}</button></span>`
     }
     const label = wrapVerb ? ` aria-label="${wrapVerb} ${escapeHtml(name)}"` : ''
     return `<button class="button" data-make="${id}" ${data}${label}${disabled}>${making === wrapId ? 'Making…' : makeLabel}</button>`

@@ -10,6 +10,24 @@ const hitWith = (conversation: Convo): Hit => ({ ...wrap.greatestHits[0]!, conve
 const thread = (html: string) =>
   [...html.matchAll(/<li class="([^"]+)"[^>]*>(.*?)<\/li>/g)].map(([, cls = '', inner = '']) => ({ cls, inner }))
 
+describe('sender names', () => {
+  it('tells apart two senders with the same first name, like the month-by-month page', () => {
+    const shared = { ...wrap, people: { ...wrap.people, p1: 'Alex Chen', p2: 'Alex Kim' } }
+    const convo: Convo = {
+      messages: [
+        { senderId: 'p1', text: 'one', sentAt: '2026-01-01T20:00:00.000Z' },
+        { senderId: 'p2', text: 'two', sentAt: '2026-01-01T20:01:00.000Z' },
+        { senderId: 'me', text: 'three', sentAt: '2026-01-01T20:02:00.000Z' },
+      ],
+      hit: 0,
+    }
+    const html = convoHtml(shared, hitWith(convo))
+    expect(html).toContain('<span class="who">Alex C.</span>')
+    expect(html).toContain('<span class="who">Alex K.</span>')
+    expect(html).not.toContain('<span class="who">Alex</span>')
+  })
+})
+
 describe('the fake demo', () => {
   it('gives each greatest hit a short made-up conversation around it', () => {
     const [poker, omw] = wrap.greatestHits

@@ -50,16 +50,21 @@ code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; 
 .chat-row .members, .chat-row .count { color: var(--ink-muted); font-size: 0.9rem; }
 .chat-row .button { padding: 9px 18px; font-size: 15px; }
 .chats .none { padding: 12px 4px; color: var(--ink-muted); }
-/* Made: a small green stamp instead of the button. */
+/* Made: a small green stamp instead of the button, in a darker green so it reads at 4.5:1 or better on the paper. */
 .made {
-  background: none; border: 2px solid var(--green); color: var(--green); border-radius: 4px; padding: 6px 12px;
+  --made-ink: #166534;
+  background: none; border: 2px solid var(--made-ink); color: var(--made-ink); border-radius: 4px; padding: 6px 12px;
   font: 800 14px/1.2 var(--font-body); cursor: pointer; transform: rotate(-2deg); white-space: nowrap;
 }
 .made:hover { background: rgba(21, 128, 61, 0.08); }
-/* Remake: a quiet link under the stamp. */
+/* Update: a quiet link under the stamp. Small words, a 44px tap area that hangs into the space around it. */
 .made-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.made-actions .remake { align-self: center; font-size: 13px; font-weight: 600; color: var(--ink-muted); text-decoration-thickness: 1px; }
-.made-actions .remake:disabled { cursor: default; opacity: 0.6; }
+.made-actions .update {
+  align-self: center; min-width: 44px; min-height: 44px; margin: -12px 0 -14px; padding: 0 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--ink-muted); text-decoration-thickness: 1px;
+}
+.made-actions .update:disabled { cursor: default; opacity: 0.6; }
 @media (max-width: 560px) {
   .chat-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
   .chat-row .count { grid-row: 2; grid-column: 1; }
@@ -83,6 +88,12 @@ code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; 
 /* The heading takes focus when the page opens, for screen readers; it isn't something to click, so no ring. */
 .wrap-head h2:focus { outline: none; }
 .facts { color: var(--ink-muted); }
+/*
+ * The preview takes focus (its pages turn with the arrow keys), so it shows a focus ring. A frame whose page has focus
+ * doesn't match :focus in every browser, so wrap.ts also marks it .focused; after a click the ring says the keys now
+ * turn its pages.
+ */
+.phone:focus, .phone.focused { outline: 3px solid var(--blue); outline-offset: 4px; }
 .phone {
   grid-area: phone; align-self: center; width: 316px; max-width: 100%; height: auto; aspect-ratio: 316 / 616;
   border: 8px solid var(--ink); border-radius: 22px; background: var(--paper); box-shadow: var(--lift-shadow);
@@ -107,7 +118,20 @@ code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; 
 .post p { margin: 0; }
 .post-row { display: flex; gap: 22px; align-items: center; margin-top: 6px; }
 .card-frame { flex: none; width: 126px; min-height: 120px; display: grid; place-items: center; }
-.you-card { width: 126px; height: auto; box-shadow: var(--lift-shadow); transform: rotate(-1.5deg); }
+.you-card { display: block; width: 126px; height: auto; box-shadow: var(--lift-shadow); transform: rotate(-1.5deg); }
+/* The thumbnail is a button: a click opens the card larger. */
+.card-zoom { padding: 0; border: 0; background: none; cursor: zoom-in; }
+.card-zoom[hidden] { display: none; }
+.card-zoom:hover .you-card { transform: rotate(-1.5deg) scale(1.03); }
+/* "Bonus: make a card about your own year →": small, after a group wrap is sent. Nothing is built until it's clicked. */
+.bonus { margin-top: 4px; font-size: 0.95rem; }
+/* The card, larger, over the dimmed page (Escape or a click closes it). */
+.lightbox {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; align-content: center; gap: 16px;
+  padding: 24px; background: rgba(43, 33, 24, 0.72); cursor: zoom-out; animation: note-in 200ms ease both;
+}
+.lightbox img { display: block; max-width: min(90vw, 480px); max-height: calc(100dvh - 120px); width: auto; height: auto; border-radius: 6px; box-shadow: 0 22px 50px -18px rgba(0, 0, 0, 0.6); }
+.lightbox .button { background: var(--paper); }
 .post-actions { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; min-width: 0; }
 .post-actions .button { padding: 10px 20px; font-size: 15px; }
 .another { margin-top: 4px; font-size: 0.95rem; }
@@ -125,4 +149,4 @@ code { font-size: 0.95em; background: rgba(43, 33, 24, 0.08); padding: 1px 5px; 
 .maker-footer .link { font-weight: 600; color: var(--ink-muted); }
 .closed { align-items: flex-start; }
 
-@media (prefers-reduced-motion: reduce) { .sent-note .check, .sent-note:not(:empty), .post { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sent-note .check, .sent-note:not(:empty), .post, .lightbox { animation: none; } }

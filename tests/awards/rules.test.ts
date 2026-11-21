@@ -18,7 +18,7 @@ describe('pickAwards', () => {
       ['main-character', 'a', 40, '40% of all messages'],
       ['ghost', 'c', 600, 'average reply 10h 0m'],
       ['starter', 'b', 30, 'started 30 conversations'],
-      ['comedian', 'b', 40, '40 laughs per 100 messages'],
+      ['comedian', 'b', 40, 'made the chat laugh 40 times'],
       ['hype', 'c', 80, 'gave 80 reactions'],
       ['night-owl', 'b', 50, '50% of messages sent 12–5 AM'], // d has 100% but only 20 messages
       ['double-texter', 'a', 12, '12 double texts'],
@@ -90,9 +90,26 @@ describe('pickAwards', () => {
     expect(ids(i)).not.toContain('comedian')
   })
 
-  it('says "laugh" for exactly 1 per 100 messages', () => {
+  it('says "once" for a single laugh, and counts laughs in My year without "the chat"', () => {
     const i = { ...inputs, reactions: { ...inputs.reactions, laughsReceivedByPerson: { b: 1 } } } // 1 of 100 messages
-    expect(pickAwards(i).find((a) => a.id === 'comedian')?.label).toBe('1 laugh per 100 messages')
+    expect(pickAwards(i).find((a) => a.id === 'comedian')?.label).toBe('made the chat laugh once')
+    expect(pickAwards(inputs, 'solo').find((a) => a.id === 'comedian')?.label).toBe('made people laugh 40 times')
+  })
+
+  it('writes every number with thousands separators', () => {
+    const big: AwardInputs = {
+      ...inputs,
+      volume: { total: 30000, byPerson: { a: 12000, b: 10000, c: 6000, d: 2000 }, attachmentsByPerson: {} },
+      starters: { startsByPerson: { b: 1234 }, doubleTextsByPerson: { a: 2500 } },
+      reactions: { givenByPerson: { c: 1012 }, receivedByPerson: {}, laughsReceivedByPerson: { b: 5900 }, byType: {} },
+    }
+    const labels = Object.fromEntries(pickAwards(big).map((a) => [a.id, a.label]))
+    expect(labels).toMatchObject({
+      starter: 'started 1,234 conversations',
+      comedian: 'made the chat laugh 5,900 times',
+      hype: 'gave 1,012 reactions',
+      'double-texter': '2,500 double texts',
+    })
   })
 
   it('counts exactly 50 messages as enough, 49 as not', () => {

@@ -14,9 +14,15 @@ import {
   updatedLine,
   welcomeLines,
   COUNT_NOTICE,
+  NEEDS_TERMINAL,
 } from '../../src/app/copy'
 
 describe('copy', () => {
+  it('offers o and q only when the keyboard can be read', () => {
+    expect(openLines('http://127.0.0.1:1/', true)[1]).toBe('Keep this window open. Press o to reopen the page, q to quit.')
+    expect(openLines('http://127.0.0.1:1/', false)[1]).toBe('Keep this window open.')
+    expect(NEEDS_TERMINAL).toBe('Run  wrapped  in Terminal to continue.')
+  })
   it('says how far back history goes', () => {
     expect(historyLine({ kind: 'ok', since: new Date(2019, 0, 3) })).toBe('Your messages go back to Jan 2019')
   })
@@ -26,8 +32,9 @@ describe('copy', () => {
   it('warns when this Mac stopped syncing, with the newest date', () => {
     expect(historyLine({ kind: 'stale', until: new Date(2026, 1, 10) })).toContain('Feb 2026')
   })
-  it('gives one access line, plus where to find the app when it is not listed', () => {
+  it('says why, then gives one access line, plus where to find the app when it is not listed', () => {
     expect(accessSteps('Terminal', { resume: true })).toEqual([
+      'Reads your Messages on this Mac to make your wrap.',
       'Turn on Terminal in the window that\'s about to open, then click "Quit & Reopen". Wrapped picks up by itself.',
       '(Not listed? Click + and choose Terminal from Applications → Utilities.)',
     ])
@@ -40,7 +47,7 @@ describe('copy', () => {
   })
   it('says to type  wrapped  only when it will not pick up by itself', () => {
     expect(accessSteps('Warp', { resume: true }).join('\n')).not.toContain('type')
-    expect(accessSteps('Warp', { resume: false })[0]).toBe('Turn on Warp in the window that\'s about to open, click "Quit & Reopen", then type  wrapped  again.')
+    expect(accessSteps('Warp', { resume: false })[1]).toBe('Turn on Warp in the window that\'s about to open, click "Quit & Reopen", then type  wrapped  again.')
   })
   it('adds a tmux step only inside tmux', () => {
     expect(accessSteps('iTerm', { resume: false, inTmux: true }).join('\n')).toContain('tmux kill-server')

@@ -96,27 +96,26 @@ describe('your person, month by month', () => {
     wrap.topPersonByMonth = months(12, ['p4', 'p2', null, 'p2'])
     wrap.topPersonCountByMonth = [412, 1204, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0]
     const html = monthPeopleSlide(wrap)!.html
-    expect(html).toContain('<span class="name" style="--len:5">Priya</span><span class="count">412</span></li>')
+    expect(html).toContain('<span class="name">Priya</span><span class="count">412</span></li>')
     expect(html).toContain('>Sam</span><span class="count">1,204</span></li>')
     expect(html).toContain('<li class="none" style="--i:2"><span class="month">Mar</span><span class="name">—</span></li>')
     expect(html.match(/class="count"/g)).toHaveLength(3)
     delete wrap.topPersonCountByMonth
     const older = monthPeopleSlide(wrap)!.html
     expect(older).not.toContain('class="count"')
-    expect(older).toContain('<span class="name" style="--len:5">Priya</span></li>')
+    expect(older).toContain('<span class="name">Priya</span></li>')
   })
 
-  it('sizes a name by its length and lets a long word break only in its middle', () => {
+  it('gives every name one size, set by the longest name on the page, whole and on one line', () => {
     const wrap = solo()
     wrap.people.p1 = 'Valentinovich Okafor'
     wrap.people.p2 = 'Bartholomew Finch'
     wrap.people.p3 = 'Ana Lu'
     wrap.topPersonByMonth = months(12, ['p1', 'p2', 'p3', 'p4'])
     const html = monthPeopleSlide(wrap)!.html
-    expect(html).toContain('<span class="name" style="--len:13">Valenti<wbr>novich</span>')
-    expect(html).toContain('<span class="name" style="--len:11">Bartho<wbr>lomew</span>')
-    expect(html).toContain('<span class="name" style="--len:3">Ana</span>')
-    expect(html).toContain('<span class="name" style="--len:5">Priya</span>')
+    expect(html).toContain('<ol class="month-people" style="--len:13">')
+    for (const name of ['Valentinovich', 'Bartholomew', 'Ana', 'Priya']) expect(html).toContain(`<span class="name">${name}</span>`)
+    expect(html).not.toContain('<wbr>')
   })
 
   it('calls the longest run of three or more months with one person their era, next to the subtitle', () => {

@@ -2,6 +2,18 @@ import os from 'node:os'
 
 const SIGNALS = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
 
+/** Long enough for the event loop to go round once and handle a waiting signal; too short to notice. */
+const SIGNAL_WAIT_MS = 50
+
+/**
+ * Lets a signal that arrived during synchronous work (reading Messages) be handled now. The program's signal handlers
+ * exit, so once this returns no such signal is pending. Not a 0 ms timer: an expired timer runs before the loop looks
+ * for signals, so it would return first.
+ */
+export function letSignalsIn(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, SIGNAL_WAIT_MS))
+}
+
 /** Thrown to stop the program cleanly (the user said no or cancelled). `main` catches it after `finally` blocks have run. */
 export class Cancelled extends Error {}
 

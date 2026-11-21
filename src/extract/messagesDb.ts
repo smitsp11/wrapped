@@ -1,11 +1,10 @@
-import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { terminalName } from '../app/access'
-import { MissingDatabaseError, NoFullDiskAccessError, errorCode } from '../errors'
+import { MissingDatabaseError, NoFullDiskAccessError, NotAMessagesDatabaseError, WrappedError, errorCode } from '../errors'
 import type { Chat, HistorySpan } from '../types'
 import { appleMsToDate, toAppleNs } from './appleTime'
-import { copyDatabase } from './copyDb'
+import { copyDatabase, removeCopy } from './copyDb'
 import type { MessageRow } from './normalize'
 import type { OpenSqlite, SqliteDb } from './sqlite'
 
@@ -104,9 +103,11 @@ export class MessagesDb {
       } catch {
         // keep the original error, not a failure to close
       } finally {
-        fs.rmSync(copy.dir, { recursive: true, force: true })
+        removeCopy(copy.dir)
       }
-      throw err
+      // SQLite's own words ("no such table: chat", "file is not a database") mean nothing to the person running it.
+      if (err instanceof WrappedError) throw err
+      throw new NotAMessagesDatabaseError(sourcePath, err)
     }
   }
 
@@ -216,7 +217,7 @@ export class MessagesDb {
     try {
       this.db.close()
     } finally {
-      fs.rmSync(this.tempDir, { recursive: true, force: true })
+      removeCopy(this.tempDir)
     }
   }
 }

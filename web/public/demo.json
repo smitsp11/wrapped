@@ -540,14 +540,14 @@
       "title": "The Comedian",
       "personId": "p2",
       "value": 5.9,
-      "label": "5.9 laughs per 100 messages"
+      "label": "made the chat laugh 305 times"
     },
     {
       "id": "hype",
       "title": "Hype Man",
       "personId": "p1",
       "value": 1062,
-      "label": "gave 1062 reactions"
+      "label": "gave 1,062 reactions"
     },
     {
       "id": "night-owl",

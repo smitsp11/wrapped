@@ -12,7 +12,7 @@ export function findWebDir(): string {
   if (!found) {
     const fromSource = process.execPath.endsWith('/bun')
     throw new WrappedError(
-      'This copy of iMessage Wrapped is missing its pages. Reinstall it with:  curl -fsSL wrapped.smitpatel.xyz | sh' +
+      'This copy of iMessage Wrapped is missing its pages. Reinstall it with:  curl -fsSL https://wrapped.smitpatel.xyz | sh' +
         (fromSource ? '\n(from source: run  npm run web:build  first)' : ''),
     )
   }

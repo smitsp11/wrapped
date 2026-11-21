@@ -21,6 +21,7 @@ async function start(): Promise<void> {
   const mine = ++view
   const isCurrent = () => mine === view
   app.onclick = app.onchange = app.oninput = null
+  window.onblur = window.onfocus = null
   try {
     const state = await api<State>('/api/state')
     if (!isCurrent()) return

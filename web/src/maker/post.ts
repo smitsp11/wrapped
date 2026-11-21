@@ -21,15 +21,18 @@ function soloWrap(state: State): Promise<Wrap> {
   return solo
 }
 
-/** "Now post yours": the personal share card with Save image and Copy image, then Make another. */
-export function mountPost(slot: HTMLElement, state: State, isCurrent: () => boolean): void {
+/**
+ * "Now post yours": the personal share card with Save image and Copy image, then Make another. A click on the card
+ * opens it larger. `focus`: move focus to the card once it's made (it replaced the button that was clicked).
+ */
+export function mountPost(slot: HTMLElement, state: State, isCurrent: () => boolean, focus = false): void {
   const year = state.period.year
   slot.innerHTML = `
     <section class="post">
       <h3>Now post yours</h3>
       <p>A card about your own year in texts, made for your story.</p>
       <div class="post-row">
-        <div class="card-frame"><img class="you-card" alt="Your ${year} in texts share card" data-card hidden /><p class="status" data-card-status>Making your card…</p></div>
+        <div class="card-frame"><button type="button" class="card-zoom" data-zoom aria-label="Open your ${year} in texts share card larger" hidden><img class="you-card" alt="Your ${year} in texts share card" data-card /></button><p class="status" role="status" data-card-status>Making your card…</p></div>
         <div class="post-actions">
           <a class="button" data-save download="my-${year}-in-texts.png" aria-disabled="true">Save image</a>
           <button class="button secondary" data-copy-card disabled>Copy image</button>
@@ -50,7 +53,8 @@ export function mountPost(slot: HTMLElement, state: State, isCurrent: () => bool
       if (!isCurrent()) return
       const url = canvas.toDataURL('image/png')
       image.src = url
-      image.hidden = false
+      find('zoom').hidden = false
+      if (focus) find('zoom').focus()
       find('card-status').textContent = ''
       save.href = url
       save.removeAttribute('aria-disabled')
@@ -65,6 +69,7 @@ export function mountPost(slot: HTMLElement, state: State, isCurrent: () => bool
     const target = event.target as Element
     if (target.closest('[data-another]')) location.hash = '#/'
     else if (target.closest('[data-copy-card]')) copyCard()
+    else if (target.closest('[data-zoom]')) openLarger(image, find('zoom'))
   })
 
   const copyCard = () => {
@@ -82,4 +87,29 @@ export function mountPost(slot: HTMLElement, state: State, isCurrent: () => bool
       say("Couldn't copy the image. Use Save image instead.")
     }
   }
+}
+
+/** The card, big, over the dimmed page. A click anywhere, or Escape, closes it and puts focus back on the thumbnail. */
+function openLarger(image: HTMLImageElement, opener: HTMLElement): void {
+  const box = document.createElement('div')
+  box.className = 'lightbox'
+  box.setAttribute('role', 'dialog')
+  box.setAttribute('aria-modal', 'true')
+  box.setAttribute('aria-label', image.alt)
+  box.innerHTML = '<img alt="" /><button type="button" class="button secondary" data-close-lightbox>Close</button>'
+  const big = box.querySelector('img')!
+  big.src = image.src
+  big.alt = image.alt
+  const close = () => {
+    box.remove()
+    document.removeEventListener('keydown', onKey)
+    opener.focus()
+  }
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') close()
+  }
+  box.addEventListener('click', close)
+  document.addEventListener('keydown', onKey)
+  document.body.append(box)
+  box.querySelector<HTMLButtonElement>('[data-close-lightbox]')!.focus()
 }

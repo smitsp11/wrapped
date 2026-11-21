@@ -14,7 +14,7 @@ describe('wrapText', () => {
   })
   it('keeps the double spaces around a command', () => {
     expect(wrapText('then type  wrapped  again.', 80)).toEqual(['then type  wrapped  again.'])
-    expect(wrapText(accessSteps('Warp', { resume: false })[0]!, 56).join('\n')).toContain('type  wrapped  again.')
+    expect(wrapText(accessSteps('Warp', { resume: false })[1]!, 56).join('\n')).toContain('type  wrapped  again.')
   })
   it('leaves the text alone when the width is unknown', () => {
     expect(wrapText('a b\nc', undefined)).toEqual(['a b', 'c'])

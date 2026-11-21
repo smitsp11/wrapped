@@ -3,6 +3,7 @@ import { ContactBook } from '../extract/contactBook'
 import { MessagesDb, type AttachmentFile } from '../extract/messagesDb'
 import { normalizeRows } from '../extract/normalize'
 import type { OpenSqlite } from '../extract/sqlite'
+import { contentMessages } from '../stats/conversation'
 import { countWords, type WordCounts } from '../stats/words'
 import type { Message, Wrap } from '../types'
 import { buildWrap } from '../wrap/buildWrap'
@@ -60,7 +61,6 @@ export function openSession(options: SessionOptions): Session {
     // A group is every chat row Messages keeps it as; its messages are labelled with the group's id.
     const groupChats = mergeGroupChats(rawChats)
     const chats = [...rawChats.filter((c) => !c.isGroup), ...groupChats].map((c) => ({ ...c, name: chatTitle(c, personFor) }))
-    const groups = rankGroupChats(groupChats, db.messageCountsByChat(period.from, period.to), personFor)
     const span = db.messageSpan()
     const history = checkHistory(span, period, now)
     const range = { from: period.from, to: period.to }
@@ -71,19 +71,25 @@ export function openSession(options: SessionOptions): Session {
     let closed = false
     // One read of every chat in the period, the first time something needs it, then reused: every chat's words
     // (so group top words are what's special to that chat) and your name, which your chats have to back up.
-    let pass: { wordBaseline: WordCounts; senderName: string } | undefined
+    // It also counts each group's messages for the home page, the way a wrap counts them (undecodable rows left out,
+    // a message in two rows of a group once), so a chat's count there matches its wrap's total.
+    let pass: { wordBaseline: WordCounts; senderName: string; groups: RankedChat[] } | undefined
     const periodPass = () => {
       if (pass) return pass
       const { messages } = normalizeRows(db.messageRows(range))
       const sources = { ownHandles: db.ownHandles(), contacts, appleAccount, accountName, messages, chats: rawChats }
       const senderName = defaultSenderName(sources)
-      return (pass = { wordBaseline: countWords(messages), senderName })
+      const counts = new Map<number, number>()
+      for (const m of contentMessages(oneChatPerGroup(messages, groupChats))) counts.set(m.chatId, (counts.get(m.chatId) ?? 0) + 1)
+      return (pass = { wordBaseline: countWords(messages), senderName, groups: rankGroupChats(groupChats, counts, personFor) })
     }
     let names: string[] | undefined
     const hiddenNames = () => (names ??= [...contacts.allNames(), periodPass().senderName])
     return {
       period,
-      groups,
+      get groups() {
+        return periodPass().groups
+      },
       history,
       buildGroup(chatId) {
         const group = groupChats.find((g) => g.chatIds.includes(chatId))

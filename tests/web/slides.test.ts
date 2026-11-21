@@ -9,8 +9,15 @@ describe('buildSlides', () => {
     expect(buildSlides(makeFakeWrap('group')).map((s) => s.id)).toEqual([
       'intro', 'volume', 'hours', 'months', 'streak', 'replies', 'starters', 'reactions', 'words', 'texting-styles', 'hits',
       'award-main-character', 'award-ghost', 'award-starter', 'award-comedian', 'award-hype',
-      'award-night-owl', 'award-double-texter', 'outro', 'summary',
+      'award-night-owl', 'award-double-texter', 'summary', 'outro',
     ])
+  })
+
+  it('says "1 message" on the intro for a single message', () => {
+    const wrap = makeFakeWrap('group')
+    wrap.volume.total = 1
+    expect(buildSlides(wrap)[0]!.html).toContain('<p>message</p>')
+    expect(buildSlides(makeFakeWrap('group'))[0]!.html).toContain('<p>messages</p>')
   })
 
   it('adds top chats in solo mode', () => {
@@ -224,7 +231,7 @@ describe('buildSlides', () => {
   it('builds the solo slide sequence', () => {
     expect(buildSlides(makeFakeWrap('solo')).map((s) => s.id)).toEqual([
       'intro', 'volume', 'top-chats', 'month-people', 'hours', 'months', 'streak', 'replies', 'starters', 'reactions', 'words', 'hits',
-      'award-ghost', 'award-starter', 'award-comedian', 'award-hype', 'award-night-owl', 'award-double-texter', 'outro', 'summary',
+      'award-ghost', 'award-starter', 'award-comedian', 'award-hype', 'award-night-owl', 'award-double-texter', 'summary', 'outro',
     ])
   })
 
@@ -237,7 +244,7 @@ describe('buildSlides', () => {
     wrap.reactions.givenByPerson = {}
     delete wrap.texting
     const ids = buildSlides(wrap).map((s) => s.id)
-    expect(ids).toEqual(['intro', 'volume', 'hours', 'months', 'streak', 'words', 'outro', 'summary'])
+    expect(ids).toEqual(['intro', 'volume', 'hours', 'months', 'streak', 'words', 'summary', 'outro'])
   })
 
   it('ends with one ask to make your own, on this site, plus Watch again', () => {
@@ -508,12 +515,12 @@ describe('sentLabel', () => {
   })
 })
 
-describe('the summary card, the last page', () => {
+describe('the summary card, just before the outro', () => {
   it('is your share card in My year: personality, your numbers and your awards', () => {
     const wrap = makeFakeWrap('solo')
     const slides = buildSlides(wrap)
-    expect(slides.at(-1)!.id).toBe('summary')
-    const html = slides.at(-1)!.html
+    expect(slides.map((s) => s.id).slice(-2)).toEqual(['summary', 'outro'])
+    const html = slides.at(-2)!.html
     const card = youCardFrom(wrap)
     expect(html).toContain('<p class="hand-title">my 2026 in texts</p>')
     expect(html).toContain('my texting personality')
@@ -529,7 +536,7 @@ describe('the summary card, the last page', () => {
     wrap.people.p1 = 'Marisol Vega'
     wrap.personStreak = { personId: 'p1', days: 117, from: '2026-03-01' }
     wrap.timing.longestStreakDays = 325
-    const summary = () => buildSlides(wrap).at(-1)!.html
+    const summary = () => buildSlides(wrap).find((s) => s.id === 'summary')!.html
     expect(summary()).toContain('<b>117 days</b><span class="hand" style="--len:16">streak w Marisol</span>')
     expect(summary()).not.toContain('Raghunathan')
     delete wrap.personStreak
@@ -540,7 +547,7 @@ describe('the summary card, the last page', () => {
     const solo = makeFakeWrap('solo')
     solo.words.topEmoji = [{ emoji: '😭', count: 9 }]
     for (const wrap of [solo, makeFakeWrap('group')]) {
-      const html = buildSlides(wrap).at(-1)!.html
+      const html = buildSlides(wrap).find((s) => s.id === 'summary')!.html
       expect(html).toMatch(/<p class="postage"><span><small class="postage-label">top emoji<\/small><span class="postage-emoji">\S+<\/span><\/span><\/p>/)
       expect(html).not.toContain('most used')
     }
@@ -548,7 +555,7 @@ describe('the summary card, the last page', () => {
 
   it("is the group's card in a group wrap: its name, total, top word, top emoji and three award winners", () => {
     const wrap = makeFakeWrap('group')
-    const html = buildSlides(wrap).at(-1)!.html
+    const html = buildSlides(wrap).find((s) => s.id === 'summary')!.html
     expect(html).toContain('<p class="hand-title">our 2026 in texts</p>')
     expect(html).toContain('>Poker Night</p>')
     expect(html).toContain(`<b>${wrap.volume.total.toLocaleString('en-US')}</b><span class="hand" style="--len:8">messages</span>`)
@@ -564,7 +571,7 @@ describe('the summary card, the last page', () => {
     wrap.words.topWords = []
     wrap.words.topEmoji = []
     wrap.awards = []
-    const html = buildSlides(wrap).at(-1)!.html
+    const html = buildSlides(wrap).find((s) => s.id === 'summary')!.html
     expect(html).toContain('&lt;b&gt;Poker&lt;/b&gt;')
     expect(html).not.toContain('<b>Poker')
     expect(html).not.toContain('top word')

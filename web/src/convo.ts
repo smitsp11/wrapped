@@ -1,6 +1,6 @@
 import type { Convo, ConvoMessage, Hit } from '../../src/stats/greatestHits'
 import type { Wrap } from '../../src/types'
-import { firstName } from '../../src/wrap/names'
+import { firstName, shortNames } from '../../src/wrap/names'
 import { escapeHtml } from './slides'
 
 /**
@@ -39,11 +39,20 @@ const TIME_GAP_MS = 60 * 60_000
 const LIFT_DELAY_MS = 450
 /** A swipe down at least this far closes the conversation. */
 const SWIPE_CLOSE_PX = 90
+/** A press that moves further than this is a drag, not a tap. */
+const DRAG_SLOP_PX = 10
 
-/** A My year conversation names the senders who aren't among the wrap's people itself. */
-function personFirstName(wrap: Wrap, convo: Convo, id: string): string {
-  if (convo.people && Object.hasOwn(convo.people, id)) return firstName(convo.people[id]!)
-  return Object.hasOwn(wrap.people, id) ? firstName(wrap.people[id]!) : 'Someone'
+/** A sender's full name: a My year conversation names the senders who aren't among the wrap's people itself. */
+function fullName(wrap: Wrap, convo: Convo, id: string): string {
+  if (convo.people && Object.hasOwn(convo.people, id)) return convo.people[id]!
+  return Object.hasOwn(wrap.people, id) ? wrap.people[id]! : 'Someone'
+}
+
+/** Each sender's first name, or "Alex C." / "Alex K." when two in the conversation share one (see shortNames). */
+function senderNames(wrap: Wrap, convo: Convo): Map<string, string> {
+  const ids = [...new Set(convo.messages.map((m) => m.senderId))]
+  const short = shortNames(ids.map((id) => ({ full: fullName(wrap, convo, id), short: firstName(fullName(wrap, convo, id)) })))
+  return new Map(ids.map((id, i) => [id, short[i]!]))
 }
 
 /** "Mon, Jan 12, 6:30 PM", in the viewer's time zone. */
@@ -60,7 +69,8 @@ export function reactionSummary(m: ConvoMessage): string {
   const laughs = m.laughs ?? 0
   const hearts = m.hearts ?? 0
   const rest = Math.max(0, (m.reactions ?? 0) - laughs - hearts)
-  const parts = [laughs > 0 ? `😂 ×${laughs}` : '', hearts > 0 ? `❤️ ×${hearts}` : '', rest > 0 ? `+${rest}` : '']
+  const n = (count: number) => count.toLocaleString('en-US')
+  const parts = [laughs > 0 ? `😂 ×${n(laughs)}` : '', hearts > 0 ? `❤️ ×${n(hearts)}` : '', rest > 0 ? `+${n(rest)}` : '']
   return parts.filter(Boolean).join(' ')
 }
 
@@ -73,6 +83,7 @@ export function convoHtml(wrap: Wrap, hit: Hit, photos: ReadonlySet<number> = ne
   const convo = hit.conversation
   if (!convo) return ''
   const items: string[] = []
+  const names = senderNames(wrap, convo)
   convo.messages.forEach((m, i) => {
     const previous = convo.messages[i - 1]
     const gap = previous ? Date.parse(m.sentAt) - Date.parse(previous.sentAt) : 0
@@ -91,7 +102,7 @@ export function convoHtml(wrap: Wrap, hit: Hit, photos: ReadonlySet<number> = ne
       : `${withPhoto ? frame : ''}<p class="bubble">${escapeHtml(m.text)}</p>`
     items.push(
       `<li class="msg ${side}${isHit ? ' hit' : ''}"${isHit ? ' data-hit' : ''}>` +
-        (runStarts ? `<span class="who">${escapeHtml(personFirstName(wrap, convo, m.senderId))}</span>` : '') +
+        (runStarts ? `<span class="who">${escapeHtml(names.get(m.senderId)!)}</span>` : '') +
         `<div class="bubble-wrap">${body}${reactions ? `<span class="tapback">${escapeHtml(reactions)}</span>` : ''}</div></li>`,
     )
   })
@@ -191,15 +202,19 @@ export function openConvo(
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) lift()
   else timer = window.setTimeout(lift, LIFT_DELAY_MS)
 
-  // Back (or a tap outside the page, on a wide screen) closes; any other tap settles the hit, or lifts it again.
+  // Back, or a tap outside the chat card (the dimmed desk on a wide screen, the page around the card on a phone), closes;
+  // a tap on the card settles the hit, or lifts it again. The hint under the card keeps it open, since it says to tap.
   // Taps stop here, so the story underneath never sees them and never flips the page.
   // Swiping the page down closes it, like a sheet; it follows the finger and springs back if the swipe is short.
   // In the settled thread a drag scrolls the thread instead (see touch-action in styles.css).
   const sheet = dialog.querySelector<HTMLElement>('.convo-sheet')!
   let swipe: { x: number; y: number } | null = null
   let swiped = false
+  /** The last press moved (a short swipe that sprang back), so the click it ends with is no tap. */
+  let dragged = false
   sheet.addEventListener('pointerdown', (event) => {
     swipe = { x: event.clientX, y: event.clientY }
+    dragged = false
   })
   sheet.addEventListener('pointermove', (event) => {
     if (!swipe) return
@@ -212,6 +227,7 @@ export function openConvo(
     const down = event.clientY - swipe.y
     const across = Math.abs(event.clientX - swipe.x)
     swipe = null
+    dragged = Math.hypot(down, across) > DRAG_SLOP_PX
     sheet.style.transition = ''
     sheet.style.transform = ''
     if (event.type === 'pointerup' && down >= SWIPE_CLOSE_PX && down > across * 2) {
@@ -224,9 +240,9 @@ export function openConvo(
 
   dialog.addEventListener('click', (event) => {
     event.stopPropagation()
-    if (swiped) return
+    if (swiped || dragged) return
     const target = event.target as Element
-    if (target.closest('[data-convo-close]') || !target.closest('.convo-sheet')) close()
+    if (target.closest('[data-convo-close]') || !target.closest('.shot, .convo-hint')) close()
     else if (dialog.dataset.state === 'lifted') settle()
     else if (target.closest('[data-hit]')) lift()
   })

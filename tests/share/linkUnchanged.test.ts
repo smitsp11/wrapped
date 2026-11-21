@@ -15,16 +15,21 @@ import { openNodeSqlite } from '../../src/extract/sqliteNode'
 import { fitToLimit, MAX_LINK_CHARS, unpackWrap } from '../../src/share/pack'
 import { withoutContactInfo } from '../../src/share/quotes'
 import { withSenderName } from '../../src/share/senderName'
+import { shortQuote } from '../../src/stats/greatestHits'
 import type { Wrap } from '../../src/types'
 
 /**
- * The maker's local photos never reach a link. These are the group links the maker made from the fake chat at 97bf9f8,
- * the commit before photos existed (same pipeline as web/src/maker/wrap.ts). They must stay the same, byte for byte.
- * My year's links changed on purpose since: they carry the conversation around each quote, like a group's.
+ * The maker's local photos never reach a link. These are the group links the maker makes from the fake chat (same
+ * pipeline as web/src/maker/wrap.ts), first pinned at 97bf9f8, the commit before photos existed. Photos must never
+ * change them. They were re-pinned only when what a link shows changed on purpose:
+ *  - award lines write numbers with separators, and The Comedian counts laughs ("made the chat laugh 40 times").
+ * Since links hold only the quotes the slide shows, cut as it shows them, a link can change for that reason too; the
+ * fake chat's three short quotes are shown whole, so these didn't.
+ * My year's links changed on purpose too: they carry the conversation around each quote, like a group's.
  */
 const BEFORE_PHOTOS = {
-  fakeGroup: { length: 2138, sha256: '111841f8ff602416d93dd062853eb389781c19e7f16be2c70136e97a09270199' },
-  sessionGroup: { length: 2142, sha256: '31a4577ddd4318522b8cc566804eef3cb4173e30c82a63d753d9ded4ef6aa4a8' },
+  fakeGroup: { length: 2142, sha256: '345f25510c0c07ba05884ad22b4ea5269034e8bb29f7da12df4d61fb8a734351' },
+  sessionGroup: { length: 2144, sha256: '9f2ec84ccf7481fd82d84d21fae8d8f3324181c4f1daf61ca9ce3ba8420efaf4' },
 }
 
 /**
@@ -98,5 +103,16 @@ describe('packed links are unchanged by local photos', () => {
     expect(convo.messages[convo.hit]).toMatchObject({ senderId: 'me', text: wrap.greatestHits[0]!.text })
     const inside = JSON.stringify(inLink)
     for (const leak of ['Attachments', 'AT-FAKE', '~/', 'FAKE-']) expect(inside).not.toContain(leak)
+  })
+
+  it('a group link holds only the quotes the slide shows, cut as it shows them', async () => {
+    const wrap = makeFakeWrap('group')
+    expect(wrap.greatestHits.length).toBeGreaterThanOrEqual(3)
+    const long = 'so here is the thing about the cabin, '.repeat(6).trim()
+    const hits = [{ ...wrap.greatestHits[0]!, text: long }, ...wrap.greatestHits.slice(1), { ...wrap.greatestHits[0]!, text: 'NEVER SHOWN QUOTE' }]
+    const inLink = await unpackWrap((await makerLink({ ...wrap, greatestHits: hits })).packed)
+    expect(inLink.greatestHits).toHaveLength(3)
+    expect(JSON.stringify(inLink)).not.toContain('NEVER SHOWN QUOTE')
+    expect(inLink.greatestHits[0]!.text).toBe(shortQuote(long))
   })
 })

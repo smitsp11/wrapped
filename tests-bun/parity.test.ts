@@ -24,7 +24,7 @@ test('bun:sqlite reads chats and messages exactly like better-sqlite3', () => {
 test('bun:sqlite reads contacts exactly like better-sqlite3', () => {
   const names = contactNames(ContactBook.fromMac(openBunSqlite, expected.home))
   expect(names).toEqual(expected.contacts)
-  expect(names[FAKE_PEOPLE.sam.handle]).toEqual({ full: 'Samuel Rivera', short: 'Sam' })
+  expect(names[FAKE_PEOPLE.sam.handle]).toEqual({ full: 'Samuel Rivera', short: 'Samuel' })
 })
 
 test('bun:sqlite sees rows that exist only in the -wal', () => {

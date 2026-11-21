@@ -82,9 +82,12 @@ export function monthsSlide(wrap: Wrap): Slide {
  * My year: who you texted the most 1:1 each month, as a strip of cards up to the period's last month. Each person keeps
  * one ink, so a run of months ("Apr Sam · May Sam") reads as one stretch. A month with no 1:1 messages shows a dash.
  * Under each name, small, how many messages that was; a link made before those counts existed shows just the names.
- * A long name is written smaller to fit its card (--len), then wraps (see breakable) rather than being cut. One person
+ * Every name is the same size, on one line: the longest name on the page sets it (--len), so the cards match. One person
  * three months running gets "Jun–Aug was the Riley era" under the subtitle (on a short page, in its place).
  */
+/** The longest name (in characters) the calendar's one shared size makes room for. */
+const NAME_SIZE_CAP = 14
+
 export function monthPeopleSlide(wrap: Wrap): Slide | null {
   const months = wrap.topPersonByMonth
   if (wrap.mode !== 'solo' || !months) return null
@@ -100,8 +103,10 @@ export function monthPeopleSlide(wrap: Wrap): Slide | null {
     if (id === null) return `<li class="none" style="--i:${i}">${month}<span class="name">—</span></li>`
     const name = shortName(wrap, names, id)
     const count = counts?.[i] ? `<span class="count">${counts[i]!.toLocaleString('en-US')}</span>` : ''
-    return `<li style="--who:var(${inks.get(id)});--i:${i}">${month}<span class="name" style="--len:${[...name].length}">${breakable(name)}</span>${count}</li>`
+    return `<li style="--who:var(${inks.get(id)});--i:${i}">${month}<span class="name">${escapeHtml(name)}</span>${count}</li>`
   })
+  // An absurdly long name doesn't shrink everyone: past NAME_SIZE_CAP characters it ends in "…" instead.
+  const longest = Math.min(NAME_SIZE_CAP, Math.max(...shown.map((id) => (id === null ? 0 : [...shortName(wrap, names, id)].length))))
   const run = longestRun(shown)
   const era = run
     ? caption({ slide: 'month-people', run: { from: MONTHS[first + run.start]!, to: MONTHS[first + run.end]!, months: run.end - run.start + 1, name: shortName(wrap, names, run.id) } })
@@ -109,7 +114,24 @@ export function monthPeopleSlide(wrap: Wrap): Slide | null {
   return {
     id: 'month-people',
     html: `<h2>Your person</h2>${aside('who you texted the most, month by month')}${era ? `<p class="aside era">${escapeHtml(era)}</p>` : ''}
-      <div class="stage"><ol class="month-people">${items.join('')}</ol></div>`,
+      <div class="stage"><ol class="month-people" style="--len:${longest}">${items.join('')}</ol></div>`,
+  }
+}
+
+/**
+ * Shrinks the calendar's names together, half a pixel at a time, until every one fits its card on one line, so all
+ * twelve stay the same size. Measured on screen, since letter counts can't tell "Ana" from "WWWW". A name over
+ * NAME_SIZE_CAP characters doesn't count: it ends in "…" rather than shrinking everyone.
+ */
+export function fitMonthNames(root: ParentNode, minPx = 7): void {
+  const list = root.querySelector<HTMLElement>('.month-people')
+  if (!list) return
+  const names = [...list.querySelectorAll<HTMLElement>('.name')].filter((el) => [...(el.textContent ?? '')].length <= NAME_SIZE_CAP)
+  const fits = () => names.every((el) => el.scrollWidth <= el.clientWidth)
+  let size = parseFloat(getComputedStyle(names[0] ?? list).fontSize)
+  while (size > minPx && !fits()) {
+    size -= 0.5
+    list.style.setProperty('--name-size', `${size}px`)
   }
 }
 
@@ -122,22 +144,6 @@ function longestRun(months: (string | null)[]): { id: string; start: number; end
     if (id !== null && (!best || i - start > best.end - best.start)) best = { id, start, end: i }
   })
   return best
-}
-
-/** A word longer than this gets a break point in its middle, used only when it can't fit its card on one line. */
-const SPLIT_WORD_CHARS = 7
-
-/** The name, escaped, with a <wbr> in the middle of each long word: "Valentinovich" wraps as "Valenti / novich". */
-function breakable(name: string): string {
-  return name
-    .split(' ')
-    .map((word) => {
-      const chars = [...word]
-      if (chars.length <= SPLIT_WORD_CHARS) return escapeHtml(word)
-      const middle = Math.ceil(chars.length / 2)
-      return `${escapeHtml(chars.slice(0, middle).join(''))}<wbr>${escapeHtml(chars.slice(middle).join(''))}`
-    })
-    .join(' ')
 }
 
 /**

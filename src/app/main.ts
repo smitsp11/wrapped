@@ -1,16 +1,14 @@
 import { cancel, confirm, intro, isCancel, log, outro, select, spinner } from '@clack/prompts'
 import { execFile } from 'node:child_process'
-import { parseArgs } from 'node:util'
 import { version } from '../../package.json'
-import { parseYear } from '../cliHelpers'
 import { MissingDatabaseError, WrappedError } from '../errors'
 import { ContactBook } from '../extract/contactBook'
-import { DEFAULT_CHAT_DB } from '../extract/messagesDb'
 import { openBunSqlite } from '../extract/sqliteBun'
 import { checkAccess, FULL_DISK_ACCESS_URL, terminalName } from './access'
-import { Cancelled, onExit } from './cleanup'
+import { Cancelled, letSignalsIn, onExit } from './cleanup'
 import { createConvoMedia } from './convoMedia'
 import { counter, countingOff } from './count'
+import { parseFlags, USAGE, type Flags } from './flags'
 import * as copy from './copy'
 import { catchKeyboardErrors, listenForKeys, NO_KEYBOARD } from './keys'
 import { openNewMessage } from './messagesApp'
@@ -20,59 +18,14 @@ import { loadContactBook, openSession, type Session } from './session'
 import { clearResume, claimResume, canResume, writeResume } from './resume'
 import { canAutoResume, installerAddedToPath, onPath } from './shellStartup'
 import { APP_DIR, hasConsented, saveConsent } from './store'
+import { sweepStaleTemp } from './tempSweep'
 import { checkForUpdate, installedVersion, runUpdate, type Update } from './update'
 import { wrapText } from './wrapText'
 
 const SITE = (process.env.WRAPPED_SITE ?? 'https://wrapped.smitpatel.xyz').replace(/\/+$/, '')
 
-export type Flags = {
-  update: boolean
-  version: boolean
-  db: string
-  check: boolean
-  resumeCheck: boolean
-  year: number
-  yearGiven: boolean
-  now: Date
-}
-
 /** Long enough to read the access line before System Settings covers the terminal. */
 const SETTINGS_DELAY_MS = 1500
-
-function parseFlags(): Flags {
-  const { values, positionals } = parseArgs({
-    options: {
-      version: { type: 'boolean' },
-      db: { type: 'string' },
-      check: { type: 'boolean' },
-      'resume-check': { type: 'boolean' },
-      year: { type: 'string' },
-      now: { type: 'string' },
-    },
-    allowPositionals: true,
-  })
-  const command = positionals[0]
-  if (positionals.length > 1 || (command !== undefined && command !== 'update')) throw new WrappedError('The only command is  wrapped update.')
-  return {
-    update: command === 'update',
-    version: values.version ?? false,
-    db: values.db ?? DEFAULT_CHAT_DB,
-    check: values.check ?? false,
-    resumeCheck: values['resume-check'] ?? false,
-    year: parseYear(values.year),
-    yearGiven: values.year !== undefined,
-    now: parseNow(values.now),
-  }
-}
-
-/** Hidden flag for the smoke test: pretend today is this day (YYYY-MM-DD, local). */
-function parseNow(text: string | undefined): Date {
-  if (text === undefined) return new Date()
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
-  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null
-  if (!match || !date || date.getMonth() !== Number(match[2]) - 1) throw new WrappedError('--now must be a date like 2026-03-10.')
-  return date
-}
 
 /** Stops by throwing, so every `finally` (closing the database copy) runs before the program exits. */
 function stop(message = 'No problem. Nothing was made.'): never {
@@ -88,10 +41,24 @@ function fit(text: string, joiner = '\n'): string {
   return wrapText(text, columns ? columns - 4 : undefined).join(joiner)
 }
 
+/**
+ * The questions (Continue?, Which year?, Keep going anyway?) need a keyboard. When the input is piped or redirected
+ * they can't be answered, so say so in one line rather than stopping silently.
+ */
+function requireTerminal(): void {
+  if (!process.stdin.isTTY) throw new WrappedError(copy.NEEDS_TERMINAL)
+}
+
+/** clack hides the cursor while it asks; whatever ends the run, the terminal gets it back. */
+function showCursor(): void {
+  if (process.stdout.isTTY) process.stdout.write('\x1b[?25h')
+}
+
 /** First run only: what it does, the startup-file line if the installer added one, and Continue?. Later runs skip all of it. */
 async function askConsent(): Promise<void> {
   if (hasConsented(APP_DIR)) return
   log.info(fit(copy.welcomeLines(installerAddedToPath(), !countingOff(process.env)).join('\n')))
+  requireTerminal()
   const yes = await confirm({ message: 'Continue?' })
   if (isCancel(yes) || !yes) stop()
   saveConsent(APP_DIR)
@@ -123,6 +90,7 @@ async function choosePeriod(flags: Flags): Promise<Period> {
   if (flags.yearGiven) return flags.year === flags.now.getFullYear() ? yearSoFar(flags.year, flags.now) : fullYear(flags.year)
   const choices = periodChoices(flags.now)
   if (choices.length === 1) return choices[0]!
+  requireTerminal()
   const picked = await select({ message: 'Which year?', options: choices.map((p, i) => ({ value: i, label: p.label })) })
   if (isCancel(picked)) stop()
   return choices[picked]!
@@ -131,9 +99,17 @@ async function choosePeriod(flags: Flags): Promise<Period> {
 async function load(dbPath: string, period: Period, now: Date): Promise<Session> {
   const s = spinner()
   s.start('Reading your messages')
-  const { contacts, note: contactsNote } = loadContactBook(openBunSqlite)
-  const session = openSession({ openSqlite: openBunSqlite, dbPath, contacts, period, now })
-  session.senderName() // reads every chat in the period once, here under the spinner rather than when the page opens
+  const { contacts, note: contactsNote } = loadContactBook(openBunSqlite) // never throws: without Contacts, names are masked
+  let session: Session | undefined
+  try {
+    session = openSession({ openSqlite: openBunSqlite, dbPath, contacts, period, now })
+    session.senderName() // reads every chat in the period once, here under the spinner rather than when the page opens
+  } catch (err) {
+    // Take the spinner down quietly: left running, it prints a stray "Canceled" as the program exits with the error.
+    s.clear()
+    session?.close()
+    throw err
+  }
   s.stop(`Messages ✓  Contacts ✓ (${contacts.size.toLocaleString('en-US')} names)`)
   if (contactsNote) log.warn(fit(contactsNote))
   return session
@@ -148,6 +124,7 @@ async function confirmHistory(session: Session): Promise<void> {
   }
   // thin or stale: warn and let them decide.
   log.warn(fit(copy.historyLine(history)))
+  requireTerminal()
   const go = await confirm({ message: 'Keep going anyway?' })
   if (isCancel(go) || !go) stop(copy.laterLine(onPath()))
 }
@@ -183,6 +160,10 @@ function printCheck(session: Session): void {
 
 async function main(): Promise<void> {
   const flags = parseFlags()
+  if (flags.help) {
+    console.log(USAGE)
+    return
+  }
   if (flags.version) {
     // Inlined from package.json at build time, so the compiled program knows its own version.
     console.log(version)
@@ -213,6 +194,8 @@ async function main(): Promise<void> {
   } else {
     clearResume(APP_DIR) // started by hand: an earlier marker is no longer needed
   }
+  // A copy of Messages that a crashed or killed run left in the temp folder goes now.
+  sweepStaleTemp()
 
   catchKeyboardErrors(process.stdin, process, keyboardBroken, (err) => fail(err))
   // In the background, never awaited before the page opens. Resolves to null on any failure.
@@ -225,6 +208,9 @@ async function main(): Promise<void> {
   const period = await choosePeriod(flags)
   const session = await load(flags.db, period, flags.now)
   const unregister = onExit(() => session.close())
+  // Reading is synchronous, so a Ctrl-C or kill during it waits until now. Let it in before anything opens: it ends
+  // the run here (and removes the copy, see copyDatabase) instead of opening the page for a program that has quit.
+  await letSignalsIn()
   try {
     await confirmHistory(session)
     await runInBrowser(session, updateCheck)
@@ -245,7 +231,7 @@ async function runInBrowser(session: Session, updateCheck: Promise<Update | null
   try {
     const app = startServer({ site: SITE, session, appDir: APP_DIR, openMessages: openNewMessage, update: () => update, media, count: counter(SITE) })
     openBrowser(app.url)
-    const [opened, keys] = copy.openLines(app.url)
+    const [opened, keys] = copy.openLines(app.url, Boolean(process.stdin.isTTY && process.stdin.setRawMode))
     log.success(fit(opened!))
     log.message(fit(keys!))
     void updateCheck.then((found) => {
@@ -269,6 +255,7 @@ function keyboardBroken(): never {
 }
 
 function fail(err: unknown): never {
+  showCursor()
   if (err instanceof Cancelled) {
     cancel(fit(err.message, '\n   '))
     process.exit(0)

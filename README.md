@@ -133,7 +133,8 @@ Here's what that means in practice:
 
 - **It all happens on your Mac.** The program makes a temporary copy of your Messages database,
   counts things in the copy, and deletes the copy when it's done, including when you press Ctrl-C
-  or close the window. It never changes your real messages.
+  or close the window, and clears any copy a crash left behind next time it starts. It never changes
+  your real messages.
 - **The wrap lives inside the link.** A link looks like `https://wrapped.smitpatel.xyz/#…`. The wrap
   is packed into the part after the `#`. Browsers never send that part to any server, so when a
   friend opens the link, the website only hands over the page; their phone unpacks the wrap itself.
@@ -155,9 +156,9 @@ Here's what that means in practice:
   just "📷 Photo", and the files never leave your Mac. Quotes and messages that look like they contain
   a phone number or email are left out. Links are capped at 8,192 characters; if a wrap is too big,
   conversations are dropped first, then the least-reacted quotes.
-- **Greatest hits bring their conversation.** Each quote on the Greatest hits page (up to 3) carries
-  the conversation around it, up to 30 messages of up to 280 characters each, so friends can tap
-  **see the convo**.
+- **Greatest hits bring their conversation.** Only the quotes on the Greatest hits page (up to 3) go
+  in a link, cut to the length the page shows. Each carries the conversation around it, up to 30
+  messages of up to 280 characters each, so friends can tap **see the convo**.
 - **My year stays mostly about you.** Its stats name only you and your top 5 people; everyone else is
   grouped as "Everyone else", and the vocabulary is only your own words. Greatest hits are your own
   messages from your 5 busiest group chats, and each one's conversation shows that chat's name and the
@@ -168,7 +169,7 @@ Here's what that means in practice:
 |:--|:--|
 | Your Messages database (`~/Library/Messages/chat.db`) | Copied to a temporary folder on your Mac, read, then deleted. |
 | Your Contacts | Copied the same way and read on your Mac to match names to numbers and emails. Only names go into a wrap. |
-| The numbers, names, quotes and the conversations around the top 3 quotes | Packed into the link, after the `#`. |
+| The numbers, names, the top 3 quotes (as the slide shows them) and the conversation around each | Packed into the link, after the `#`. |
 | The link | Wherever you paste it. Nowhere else. |
 | wrapped.smitpatel.xyz | Serves the viewer page. Never receives the part after the `#`. |
 | Page views | Vercel Web Analytics, cookieless: one of three addresses (`/`, `/w`, `/demo`). Never the part after the `#`. |

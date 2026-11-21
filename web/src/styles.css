@@ -52,7 +52,7 @@ body {
 }
 .slide {
   position: absolute; inset: 0;
-  padding: 50px 26px 26px;
+  padding: 50px 26px max(26px, env(safe-area-inset-bottom));
   display: flex; flex-direction: column; gap: 10px;
   background: var(--grain), var(--paper);
   color: var(--ink);
@@ -75,7 +75,7 @@ body {
 
 /* Progress: one segment per page, filled up to the current one. */
 .progress { position: absolute; top: max(20px, env(safe-area-inset-top)); left: 26px; right: 26px; display: flex; gap: 4px; z-index: 1; }
-.progress span { flex: 1; height: 4px; border-radius: 2px; background: var(--ink-faint); }
+.progress span { flex: 1; height: 4px; border-radius: 2px; background: rgba(43, 33, 24, 0.28); }
 .progress .done { background: var(--ink); }
 
 /* ---------- Type ---------- */
@@ -195,8 +195,10 @@ p { margin: 0; }
  */
 .month-people li { container-type: inline-size; align-content: start; }
 .month-people .name {
-  font-size: clamp(12px, 100cqw / (var(--len, 6) * 0.65), 19px); font-weight: 800; line-height: 1.15;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  /* One size for every card, set by the slide's longest name, and always one line. */
+  /* A first guess from the longest name; fitMonthNames (yearSlides.ts) then shrinks them all until each fits. */
+  font-size: var(--name-size, clamp(9px, 100cqw / (var(--len, 6) * 0.72), 19px)); font-weight: 800; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* The month's message count, small and muted like a note's label. */
 .month-people .count { font: 700 15px/1 var(--font-hand); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
@@ -344,6 +346,8 @@ figcaption .by-count { flex: none; white-space: pre; }
 .cta .hand { font-size: 34px; line-height: 1; color: var(--orange); transform: rotate(-2deg); }
 .cta .button { margin-top: 6px; padding: 14px 26px; font-size: 18px; align-self: auto; white-space: nowrap; }
 .slide[data-slide="outro"] .link { font-size: 18px; }
+/* "Watch again": small words, a 44px tap area. */
+.watch-again { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; }
 
 /*
  * The last page: the summary card to save, laid out like its saved image (see summary.ts). A polaroid with the
@@ -363,8 +367,8 @@ figcaption .by-count { flex: none; white-space: pre; }
   transform: rotate(8deg); animation: settle 560ms cubic-bezier(0.2, 0.9, 0.3, 1.25) 420ms both; --tilt: 8deg;
 }
 .postage > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 50px; height: 58px; background: var(--award-paper); }
-/* "TOP EMOJI" above the emoji, small, in the accent colour, like the saved image's stamp. */
-.postage-label { font: 800 6.5px/1 var(--font-body); letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; color: var(--orange); }
+/* "TOP EMOJI" above the emoji, small (but readable: 9px), in the accent colour, like the saved image's stamp. */
+.postage-label { font: 800 9px/1 var(--font-body); letter-spacing: 0.02em; text-transform: uppercase; text-align: center; color: var(--orange); }
 .postage-emoji { font-size: 28px; line-height: 1; }
 /* Every note is the same height, each number and label on one line, so they line up across the grid. */
 .summary-notes { list-style: none; margin: 0; padding: 0; width: min(320px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 16px 12px; }
@@ -406,13 +410,14 @@ figcaption .by-count { flex: none; white-space: pre; }
   .signature li { padding: 4px 10px; font-size: 14px; }
   .signature b { font-size: 19px; }
   .slide[data-slide^="award-"] .stage { gap: 12px; }
+  /* a smaller stamp, so "tap to flip the page" always has room under a two-line winner and a long line */
+  .slide[data-slide^="award-"] .stamp { --size: min(220px, 58cqw); }
   .summary-card { gap: 12px; }
   .summary-card .polaroid { padding: 8px 8px 6px; }
   .summary-card .polaroid .photo { min-height: 92px; padding: 10px; gap: 4px; }
   .summary-card .polaroid .hand { font-size: 19px; margin-top: 5px; }
   .postage { top: -24px; right: max(-6px, calc(50% - min(155px, 42cqw) - 30px)); }
-  .postage > span { width: 38px; height: 44px; gap: 2px; }
-  .postage-label { font-size: 5px; }
+  .postage > span { width: 46px; height: 54px; gap: 2px; }
   .postage-emoji { font-size: 21px; }
   .summary-card .photo-label { font-size: 10px; letter-spacing: 0.1em; }
   .summary-notes { gap: 12px 10px; }
@@ -427,29 +432,30 @@ figcaption .by-count { flex: none; white-space: pre; }
 /* ---------- What was the convo? A greatest hit's conversation (see convo.ts) ---------- */
 
 /*
- * On the Greatest hits page, a quote with a conversation says so in the margin; the link (or a long press on the card)
- * opens it. The link is at least 44px tall to tap, and its padding hangs into the card's own padding.
+ * On the Greatest hits page, a quote with a conversation says so under it; the link (or a long press on the card)
+ * opens it. The link is at least 44px tall to tap, and its padding hangs into the card's own padding. It sits on the
+ * left: the right edge of the page always turns the page (NEXT_STRIP in main.ts), even over a card.
  */
 .quotes figure[data-convo] { -webkit-touch-callout: none; }
 .see-convo {
-  display: flex; align-items: center; min-height: 44px; margin: -2px -12px -14px auto; padding: 0 12px;
+  display: flex; align-items: center; min-height: 44px; margin: -2px auto -14px -12px; padding: 0 12px;
   border: 0; background: none; cursor: pointer;
-  font: 700 22px/1 var(--font-hand); color: var(--orange); transform: rotate(-2deg); transform-origin: right;
+  font: 700 22px/1 var(--font-hand); color: var(--orange); transform: rotate(-2deg); transform-origin: left;
 }
 .see-convo:hover { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
 /*
- * Three quotes: under each, who and the reactions on a line of their own, then when it was sent with "see the convo"
- * beside it. When the two don't fit side by side (a narrow page, a long date), the link goes on to its own line
- * instead of running into the date.
+ * Three quotes: under each, who and the reactions on a line of their own, then "see the convo" with when it was sent
+ * beside it, on the right. When the two don't fit side by side (a narrow page, a long date), the date goes on to its own
+ * line instead of running into the link.
  */
 .quotes.three { gap: 22px; }
 .quotes.three figure { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; padding: 18px 16px 10px; }
 .quotes.three blockquote { flex: 1 0 100%; margin-bottom: 6px; }
 .quotes.three figcaption { display: contents; }
 .quotes.three figcaption .by { flex: 1 0 100%; }
-.quotes.three figcaption time { margin-top: 4px; }
+.quotes.three figcaption time { order: 2; margin-top: 4px; margin-left: auto; }
 /* its tap area, taller than its words, hangs up and out into the card's padding */
-.quotes.three .see-convo { margin: -6px -12px -12px auto; }
+.quotes.three .see-convo { order: 1; margin: -6px 0 -12px -12px; }
 /* A short page (a laptop window, a small phone, the maker's 300×600 preview): smaller type and less space around it. */
 @media (max-height: 760px) {
   .slide:has(.quotes.three) .stage { padding-block: 4px; }
@@ -458,7 +464,7 @@ figcaption .by-count { flex: none; white-space: pre; }
   .quotes.three blockquote { font-size: 16.5px; margin-bottom: 4px; }
   .quotes.three figcaption { font-size: 19px; }
   .quotes.three figcaption time { font-size: 16px; margin-top: 2px; }
-  .quotes.three .see-convo { padding: 0 10px; font-size: 20px; margin: -7px -10px -10px auto; }
+  .quotes.three .see-convo { padding: 0 10px; font-size: 20px; margin: -7px 0 -10px -10px; }
   .quotes.three figure::before { top: -10px; height: 20px; width: 84px; }
 }
 @media (max-height: 700px) {
@@ -615,6 +621,19 @@ figcaption .by-count { flex: none; white-space: pre; }
 .install { display: grid; gap: 10px; margin-top: 14px; --tilt: -0.8deg; --i: 3; }
 .command { margin: 0; background: var(--ink); color: var(--paper); padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-size: 0.95rem; user-select: all; }
 .install .button { margin-top: 0; justify-self: start; }
+/*
+ * A phone can't run the install line: there the install card gives way to "Make yours on a Mac", whose button sends the
+ * site to yourself. A touch screen or a narrow page counts as a phone; a computer keeps the install card.
+ */
+.on-phone { display: none; gap: 8px; margin-top: 14px; --tilt: -0.8deg; --i: 3; }
+.on-phone-title { font: 700 30px/1 var(--font-hand); color: var(--orange); transform: rotate(-2deg); transform-origin: left; }
+.on-phone .small { margin-top: -2px; font-weight: 700; }
+.on-phone .button { margin-top: 4px; justify-self: start; }
+.on-phone [data-send-self-status]:empty { display: none; }
+@media (pointer: coarse), (max-width: 500px) {
+  .install, .on-computer { display: none; }
+  .on-phone { display: grid; }
+}
 .demo-link { justify-self: start; font-size: 20px; margin-top: 6px; }
 .small { font-size: 0.85rem; color: var(--ink-muted); }
 .small a { color: inherit; }
@@ -667,7 +686,11 @@ figcaption .by-count { flex: none; white-space: pre; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-/* The demo's way out: a small pill at the bottom, back to the landing page and its install line. */
+/*
+ * The demo's way out: a small pill at the bottom, back to the landing page and its install line. On a page with no room
+ * for it at the bottom (main.ts measures), it hides and the ✕ is the way out.
+ */
+.demo-exit.no-room { display: none; }
 .demo-exit {
   position: fixed; left: 50%; bottom: calc(52px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20;
   padding: 7px 15px; border-radius: 999px; background: var(--ink); color: var(--paper);
@@ -677,9 +700,12 @@ figcaption .by-count { flex: none; white-space: pre; }
 /* The ✕ sits at the end of the progress bar, which makes room for it on the demo. */
 .progress:has(~ .demo-close) { right: 52px; }
 .demo-close {
-  position: absolute; top: calc(max(20px, env(safe-area-inset-top)) - 12px); right: 14px; z-index: 20;
-  width: 28px; height: 28px; display: grid; place-items: center;
+  /* a small ✕ with a 44px tap area around it, centred where the 28px one was */
+  position: absolute; top: calc(max(20px, env(safe-area-inset-top)) - 20px); right: 6px; z-index: 20;
+  width: 44px; height: 44px; display: grid; place-items: center;
   color: var(--ink); font-size: 16px; font-weight: 700; text-decoration: none;
 }
-/* Short screens have no spare room at the bottom for the pill: the ✕ is the way out there. */
-@media (max-height: 760px) { .demo-exit { display: none; } }
+/* Short screens: the pill sits lower, closer to the edge, so it fits under more pages. */
+@media (max-height: 760px) { .demo-exit { bottom: calc(12px + env(safe-area-inset-bottom)); } }
+/* While a conversation is open it has the screen: the demo's way out waits behind it. */
+body:has(.convo) .demo-exit, body:has(.convo) .demo-close { display: none; }

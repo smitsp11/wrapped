@@ -90,7 +90,7 @@ test('save ↓ is on greatest hits, the vocabulary, each award and the summary c
       const heading = await textBoxes(page.getByTestId('slide').locator('h2, .hand-title').first())
       for (const a of label) for (const b of heading) expect(overlaps(a, b)).toBe(false)
     }
-    if (id === 'summary') break
+    if (id === 'outro') break
     await page.keyboard.press('ArrowRight')
   }
   expect(withControl).toEqual(['words', 'hits', ...demo().awards.map((a) => `award-${a.id}`), 'summary'])
@@ -108,7 +108,7 @@ test('on a computer, save ↓ downloads a 1080×1920 PNG and the page stays put'
   await expect(control(page)).toHaveText('save ↓', { timeout: 5000 })
 })
 
-test('the last page is a summary card that saves as an image: the group\'s, or your own in My year', async ({ page }) => {
+test('the page before the outro is a summary card that saves as an image: the group\'s, or your own in My year', async ({ page }) => {
   test.skip(await isTouch(page), 'phones share instead (below)')
   await toSlide(page, 'summary')
   const card = page.getByTestId('slide').locator('.summary-card')

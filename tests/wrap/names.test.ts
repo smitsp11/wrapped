@@ -32,7 +32,7 @@ describe('personLookup', () => {
   it('takes the short name from Contacts', () => {
     expect(personFor('+14165550101')).toEqual({ full: 'Mary Anne Smith', short: 'Mary Anne' })
     expect(personFor('+14165550102')).toEqual({ full: 'Pizza Pizza', short: 'Pizza Pizza' })
-    expect(personFor('+14165550103')).toEqual({ full: 'Robert Smith', short: 'Bob' })
+    expect(personFor('+14165550103')).toEqual({ full: 'Robert Smith', short: 'Robert' })
   })
   it('masks a handle without a contact, for both names', () => {
     const p = personFor('+14165550199')

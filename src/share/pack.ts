@@ -1,5 +1,5 @@
 import { BrokenLinkError, WrappedError } from '../errors'
-import { type Hit, SHOWN_HITS } from '../stats/greatestHits'
+import { type Hit, SHOWN_HITS, shortQuote } from '../stats/greatestHits'
 import type { Wrap } from '../types'
 import { parseWrap } from './parseWrap'
 
@@ -27,18 +27,27 @@ export async function unpackWrap(packed: string): Promise<Wrap> {
 }
 
 /**
- * Shrinks the wrap until the packed link fits. Expects `greatestHits` sorted most-reacted first, as `greatestHits()` returns it.
- * Only the quotes the slide shows (SHOWN_HITS) keep their conversation. Then, while it's too long, it removes in this order:
- * quotes the slide doesn't show, conversations (least-reacted quote first), then shown quotes from the end.
+ * Only what the slide shows goes in a link: the first SHOWN_HITS quotes, each cut to what the Greatest hits slide shows
+ * (shortQuote), with the conversation around it (each message there is already cut to MAX_QUOTE_LENGTH). Quotes the
+ * slide never shows stay out. Expects `greatestHits` sorted most-reacted first, as `greatestHits()` returns it, and any
+ * quote that mustn't be shared already taken out (withoutContactInfo), so the link's quote i is the i-th one left.
+ */
+export function shownHits(hits: Hit[]): Hit[] {
+  return hits.slice(0, SHOWN_HITS).map((hit) => ({ ...hit, text: shortQuote(hit.text) }))
+}
+
+/**
+ * Packs what the slides show (shownHits), and shrinks it until the link fits: while it's too long it removes
+ * conversations (least-reacted quote first), then quotes from the end. `dropped` is the quotes removed for length.
  */
 export async function fitToLimit(wrap: Wrap, limit = MAX_LINK_CHARS): Promise<{ packed: string; dropped: Hit[] }> {
-  const kept = wrap.greatestHits.map((hit, i) => (i < SHOWN_HITS ? hit : withoutConversation(hit)))
+  const kept = shownHits(wrap.greatestHits)
   const dropped: Hit[] = []
   for (;;) {
     const packed = await packWrap({ ...wrap, greatestHits: kept })
     if (packed.length <= limit) return { packed, dropped }
     const lastConvo = lastIndexWithConversation(kept)
-    if (kept.length <= SHOWN_HITS && lastConvo >= 0) {
+    if (lastConvo >= 0) {
       kept[lastConvo] = withoutConversation(kept[lastConvo]!)
       continue
     }

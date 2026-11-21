@@ -115,6 +115,9 @@ describe('cardStats', () => {
       { value: '1,143 days', label: 'streak w Marisol' },
     ])
   })
+  it('says "text sent" for exactly one', () => {
+    expect(cardStats({ ...card, textsSent: 1 })[0]).toEqual({ value: '1', label: 'text sent' })
+  })
   it('calls a streak with no one named the longest streak', () => {
     expect(cardStats({ ...card, streak: { days: 325 } }).at(-1)).toEqual({ value: '325 days', label: 'longest streak' })
   })

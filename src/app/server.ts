@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { MAKER_CSP } from '../csp'
 import { buildSelection, groupWrapId, soloWrapId, type Selection } from './build'
 import type { ConvoMedia } from './convoMedia'
 import type { Count } from './count'
@@ -154,5 +155,13 @@ function serveFile(pathname: string, webDir: string): Response {
   const relative = pathname === '/' ? 'maker.html' : decoded.replace(/^\/+/, '')
   const file = path.resolve(webDir, relative)
   if (!file.startsWith(path.resolve(webDir) + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return empty(404)
-  return new Response(fs.readFileSync(file), { headers: { 'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream' } })
+  return new Response(fs.readFileSync(file), {
+    headers: {
+      'content-type': TYPES[path.extname(file)] ?? 'application/octet-stream',
+      // The site's policy, except the maker may frame its own preview (see csp.ts).
+      'content-security-policy': MAKER_CSP,
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+    },
+  })
 }

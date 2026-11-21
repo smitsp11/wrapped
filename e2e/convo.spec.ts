@@ -220,3 +220,79 @@ for (const [width, height] of [[390, 844], [1440, 900], [300, 600]] as const) {
     expect(await offCentre(page)).toBeLessThan(40)
   })
 }
+
+/** A point in the strip along the page's right edge that always turns the page (NEXT_STRIP in main.ts). */
+async function inRightStrip(page: Page, card: Locator): Promise<{ x: number; y: number }> {
+  const app = (await page.locator('#app').boundingBox())!
+  const box = (await card.boundingBox())!
+  return { x: app.x + app.width * 0.9, y: box.y + box.height / 2 }
+}
+
+test('a tap on a card in the right edge of the page turns the page, and never opens the conversation', async ({ page }) => {
+  await toHits(page)
+  const card = page.locator('[data-convo="0"]')
+  const { x, y } = await inRightStrip(page, card)
+  if (await isTouch(page)) await page.touchscreen.tap(x, y)
+  else await page.mouse.click(x, y)
+  await expect(page.getByTestId('slide')).not.toHaveAttribute('data-slide', 'hits')
+  await expect(dialog(page)).toHaveCount(0)
+})
+
+test('pressing and holding a card in the right edge does not open it', async ({ page }) => {
+  await toHits(page)
+  const card = page.locator('[data-convo="1"]')
+  const { x, y } = await inRightStrip(page, card)
+  const touch = { pointerType: 'touch', isPrimary: true, pointerId: 7, button: 0, bubbles: true, clientX: x, clientY: y }
+  await card.dispatchEvent('pointerdown', touch)
+  await page.waitForTimeout(700)
+  await expect(dialog(page)).toHaveCount(0)
+  await card.dispatchEvent('pointerup', touch)
+})
+
+test('"see the convo" sits clear of the right edge that turns the page', async ({ page }) => {
+  for (const [width, height] of [[390, 844], [300, 600]] as const) {
+    await page.setViewportSize({ width, height })
+    await toHits(page)
+    const app = (await page.locator('#app').boundingBox())!
+    for (const i of [0, 1, 2]) {
+      const link = (await seeConvo(page, i).boundingBox())!
+      expect(link.x + link.width, `link ${i} at ${width}px`).toBeLessThan(app.x + app.width * 0.76)
+    }
+  }
+})
+
+test('a tap outside the chat card closes the conversation, like back', async ({ page }) => {
+  await toHits(page)
+  await press(seeConvo(page, 0))
+  await expect(dialog(page)).toBeVisible()
+  // On a phone the page around the card; on a laptop the dimmed desk around the page.
+  if (await isTouch(page)) await press(dialog(page).locator('.convo-title'))
+  else await page.mouse.click(8, 8)
+  await expect(dialog(page)).toHaveCount(0)
+  await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'hits')
+  await expect(seeConvo(page, 0)).toBeFocused()
+})
+
+test('the hint under the card keeps the conversation open', async ({ page }) => {
+  await toHits(page)
+  await press(seeConvo(page, 0))
+  await expect(dialog(page)).toHaveAttribute('data-state', 'lifted')
+  await press(dialog(page).locator('.convo-hint'))
+  await expect(dialog(page)).toHaveAttribute('data-state', 'settled')
+})
+
+test('a press on a card that turns into a page change never opens the conversation later', async ({ page }) => {
+  test.skip(await isTouch(page), 'arrow keys and Escape are a laptop thing')
+  for (const key of ['ArrowRight', 'Escape']) {
+    await page.goto('about:blank')
+    await toHits(page)
+    const box = (await page.locator('[data-convo="0"] blockquote').boundingBox())!
+    await page.mouse.move(box.x + 20, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.keyboard.press(key)
+    await page.waitForTimeout(700)
+    await page.mouse.up()
+    await expect(dialog(page), key).toHaveCount(0)
+    await expect(page.locator('#app')).not.toHaveAttribute('inert')
+  }
+})

@@ -4,9 +4,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { AttachmentFile } from '../extract/messagesDb'
+import { writeOwner } from '../extract/copyDb'
 import { attachmentKind } from '../extract/normalize'
 import { linkHitIndices } from '../share/quotes'
-import { SHOWN_HITS } from '../stats/greatestHits'
 import type { Wrap } from '../types'
 import { loadWrap, SAFE_ID } from './store'
 
@@ -177,7 +177,10 @@ export function createConvoMedia({
   const converted = (id: string, file: string) => {
     let job = converting.get(id)
     if (!job) {
-      cacheDir ??= fs.mkdtempSync(path.join(os.tmpdir(), 'imessage-wrapped-media-'))
+      if (!cacheDir) {
+        cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imessage-wrapped-media-'))
+        writeOwner(cacheDir) // so a later run's sweep leaves it alone while this one runs
+      }
       const output = path.join(cacheDir, `${id}.jpg`)
       job = convert(file, output).then(() => {
         if (!fs.statSync(output).isFile()) throw new Error('No JPEG was written.')
@@ -197,7 +200,7 @@ export function createConvoMedia({
       } catch {
         return null
       }
-      const shown = linkHitIndices(wrap).slice(0, SHOWN_HITS)
+      const shown = linkHitIndices(wrap)
       const items: MediaItem[] = []
       for (const photo of loadConvoPhotos(appDir, wrapId)) {
         const hit = shown.indexOf(photo.hit)

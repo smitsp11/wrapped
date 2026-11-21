@@ -92,7 +92,7 @@ function expectClean(sent: Sent[], secrets: string[]): void {
 test('a landing page view is sent as "/" with one landing_visit tally', async ({ page, baseURL }) => {
   const { insights, tallies } = await asProduction(page, baseURL!)
   await page.goto(`${SITE}/?utm_source=x`)
-  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'See a demo' })).toBeVisible() // the landing page
   await expect.poll(() => viewed(insights)).toEqual([`${SITE}/`])
   await expect.poll(() => tallies.map((t) => JSON.parse(t.body))).toEqual([{ event: 'landing_visit' }])
   expectClean([...insights, ...tallies], [])

@@ -30,7 +30,7 @@ function textOf(card: PageContent): string {
 }
 
 export async function drawSlideCard(canvas: HTMLCanvasElement, card: SlideCard): Promise<void> {
-  // The last page's summary cards are the share cards themselves.
+  // The summary page's cards are the share cards themselves.
   if (card.kind === 'you') return drawYouCard(canvas, card.card)
   if (card.kind === 'group') return drawGroupCard(canvas, card.card)
   await loadFonts(`${textOf(card)} ${card.kicker} ${FOOTER}`)

@@ -1,4 +1,4 @@
-import { MISSING_DB, noAccess } from './app/copy'
+import { MISSING_DB, NOT_A_MESSAGES_DB, noAccess } from './app/copy'
 
 /** Errors with a message meant for the person running the CLI. */
 export class WrappedError extends Error {
@@ -15,6 +15,17 @@ export class MissingDatabaseError extends WrappedError {
   constructor(dbPath: string) {
     super(MISSING_DB)
     this.dbPath = dbPath
+  }
+}
+
+/** The file opened, but it isn't a Messages database: empty, damaged, or something else. */
+export class NotAMessagesDatabaseError extends WrappedError {
+  /** the path; kept off the message (DEBUG=1 prints the error) */
+  readonly dbPath: string
+  constructor(dbPath: string, cause?: unknown) {
+    super(NOT_A_MESSAGES_DB)
+    this.dbPath = dbPath
+    this.cause = cause
   }
 }
 

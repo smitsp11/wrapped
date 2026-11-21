@@ -114,7 +114,7 @@ export function groupAwardChip(award: GroupCard['awards'][number]): string {
 
 /** The taped notes, in order: texts sent, peak hour, average reply, streak (whichever the card has). */
 export function cardStats(card: YouCard): CardStat[] {
-  const stats: CardStat[] = [{ value: card.textsSent.toLocaleString('en-US'), label: 'texts sent' }]
+  const stats: CardStat[] = [{ value: card.textsSent.toLocaleString('en-US'), label: card.textsSent === 1 ? 'text sent' : 'texts sent' }]
   if (card.peakHour) stats.push({ value: card.peakHour, label: 'peak hour' })
   if (card.typicalReply) stats.push({ value: card.typicalReply, label: 'average reply' })
   if (card.streak) {

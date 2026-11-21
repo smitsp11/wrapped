@@ -1,5 +1,5 @@
 /**
- * The last page of a wrap: a summary card to save and post. My year shows your personal share card (personality and
+ * The page before the outro: a summary card to save and post. My year shows your personal share card (personality and
  * your own numbers, see maker/youCard.ts); a group wrap shows the chat's name, its total, its top word and a few award
  * winners. "save ↓" saves the same card, drawn on a canvas (see save/slideCards.ts). Pure (no DOM), like slides.ts.
  */
@@ -29,7 +29,7 @@ export function groupCardFrom(wrap: Wrap): GroupCard {
   }
 }
 
-/** The data behind the last page: your card in My year, the group's card in a group wrap. */
+/** The data behind the summary page: your card in My year, the group's card in a group wrap. */
 export function summaryCardFor(wrap: Wrap): { kind: 'you'; card: YouCard } | { kind: 'group'; card: GroupCard } {
   return wrap.mode === 'group' ? { kind: 'group', card: groupCardFrom(wrap) } : { kind: 'you', card: youCardFrom(wrap) }
 }

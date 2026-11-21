@@ -32,11 +32,13 @@ async function tapUntilOutro(page: Page): Promise<void> {
 
 test('the landing page explains who can make a wrap and opens the demo', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
+  const phone = await page.evaluate(() => matchMedia('(pointer: coarse), (max-width: 500px)').matches)
+  await expect(page.getByText('Open Terminal and paste')).toBeVisible({ visible: !phone })
+  await expect(page.getByText('Make yours on a Mac')).toBeVisible({ visible: phone })
   await expect(page.getByText("the year's almost over. who did you actually text the most?")).toBeVisible()
-  // Mac comes up once, beside the install line, where it matters.
-  expect((await page.locator('.landing').innerText()).match(/\bMac\b/g)).toEqual(['Mac'])
-  await expect(page.getByText('Needs a Mac with Messages.')).toBeVisible()
+  // On a computer Mac comes up once, beside the install line, where it matters. A phone gets the card to send it to a Mac.
+  if (!phone) expect((await page.locator('.landing').innerText()).match(/\bMac\b/g)).toEqual(['Mac'])
+  await expect(page.getByText(/^Needs a Mac with Messages\./).filter({ visible: true })).toHaveCount(1)
   await expect(page.locator('[data-beta-tag]')).toHaveText('Beta')
   await page.getByRole('link', { name: 'See a demo' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
@@ -50,6 +52,46 @@ test('the landing page explains who can make a wrap and opens the demo', async (
   await tapUntilOutro(page)
   await tap(page, 0.15)
   await expect(page.getByTestId('slide')).not.toHaveAttribute('data-slide', 'outro')
+})
+
+test('on a phone the install card gives way to "Make yours on a Mac", which sends the site to yourself', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  // No share sheet here (the copy fallback); a phone with one opens it instead (below).
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { value: undefined })
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t: string) => void ((window as unknown as { copied: string }).copied = t) } })
+  })
+  await page.goto('/')
+  await expect(page.getByText('Open Terminal and paste')).toBeHidden()
+  await expect(page.getByText('Read the install script')).toBeHidden()
+  const card = page.locator('[data-on-phone]')
+  await expect(card).toBeVisible()
+  // "Needs a Mac" right under the card's title, near the top.
+  const [title, needs] = await Promise.all([card.getByText('Make yours on a Mac').boundingBox(), card.getByText('Needs a Mac with Messages.').boundingBox()])
+  expect(needs!.y - (title!.y + title!.height)).toBeLessThan(20)
+  await card.getByRole('button', { name: 'Send it to myself' }).click()
+  await expect(card.getByRole('status')).toHaveText('Link copied. Paste it to yourself.')
+  expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe('https://wrapped.smitpatel.xyz')
+  await expect(page.getByRole('link', { name: 'See a demo' })).toBeVisible()
+})
+
+test('on a phone with a share sheet, "Send it to myself" shares the site', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { value: async (data: ShareData) => void ((window as unknown as { shared: ShareData }).shared = data) })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Send it to myself' }).click()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { shared?: ShareData }).shared)).toEqual({ url: 'https://wrapped.smitpatel.xyz' })
+  await expect(page.locator('[data-send-self-status]')).toHaveText('')
+})
+
+test('a computer keeps the install card', async ({ page }) => {
+  test.skip(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'a touch screen is a phone here')
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/')
+  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
+  await expect(page.locator('[data-on-phone]')).toBeHidden()
 })
 
 test('a packed link plays the wrap inside it', async ({ page }) => {
@@ -111,19 +153,42 @@ test('arrow keys and Space move through the slides and stop at both ends', async
   await page.keyboard.press('ArrowLeft')
   await expect(slide).toHaveAttribute('data-slide', second!)
   for (let i = 0; i < 40; i++) await page.keyboard.press('ArrowRight')
-  await expect(slide).toHaveAttribute('data-slide', 'summary')
+  await expect(slide).toHaveAttribute('data-slide', 'outro')
   await page.keyboard.press('ArrowRight')
-  await expect(slide).toHaveAttribute('data-slide', 'summary')
+  await expect(slide).toHaveAttribute('data-slide', 'outro')
 })
 
-test('Escape goes home, and taps there do nothing', async ({ page }) => {
+test('Escape on a shared wrap stays on the wrap; only the demo closes with it', async ({ page }) => {
+  await page.goto(`/#${await packWrap({ ...demo(), title: 'Linked Chat' })}`)
+  await expect(page.getByRole('heading', { name: 'Linked Chat' })).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  const second = await currentSlide(page)
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', second!)
+  await expect(page.locator('.landing')).toHaveCount(0)
+})
+
+test('the progress bar says which page this is', async ({ page }) => {
+  await page.goto('/#demo')
+  const bar = page.getByRole('progressbar')
+  const total = await page.locator('.progress span').count()
+  await expect(bar).toHaveAttribute('aria-valuenow', '1')
+  await expect(bar).toHaveAttribute('aria-valuemax', String(total))
+  await expect(bar).toHaveAccessibleName(`page 1 of ${total}`)
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '3')
+  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuetext', `page 3 of ${total}`)
+})
+
+test('Escape on the demo goes home, and taps there do nothing', async ({ page }) => {
   await page.goto('/#demo')
   await expect(page.getByTestId('slide')).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'See a demo' })).toBeVisible() // the landing page
   await page.mouse.click(300, 300)
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByText('Open Terminal and paste')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'See a demo' })).toBeVisible() // the landing page
   await expect(page.getByTestId('slide')).toHaveCount(0)
 })
 
@@ -141,6 +206,10 @@ test('the outro asks you to make your own and can watch again', async ({ page })
     return Math.round(text / parseFloat(style.lineHeight))
   })
   expect(lines).toBe(1)
+  // Small words, a 44px tall tap area.
+  const again = (await page.getByRole('link', { name: 'Watch again' }).boundingBox())!
+  expect(again.height).toBeGreaterThanOrEqual(44)
+  expect(again.width).toBeGreaterThanOrEqual(44)
   await page.getByRole('link', { name: 'Watch again' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
 })
@@ -178,7 +247,7 @@ test('long names and quotes never overflow a slide', async ({ page }) => {
       sawHits = true
       await expect(page.getByRole('heading', { name: 'Greatest hits' })).toBeVisible()
     }
-    if (id === 'summary') break
+    if (id === 'outro') break
     await page.keyboard.press('ArrowRight')
   }
   expect(sawHits).toBe(true)
@@ -210,7 +279,7 @@ test('long names are never hyphenated: one line on ranked cards, and an award wi
         expect(name.lines, 'a one-word winner breaks mid-word').toBe(1)
       }
     }
-    if ((await currentSlide(page)) === 'summary') break
+    if ((await currentSlide(page)) === 'outro') break
     await page.keyboard.press('ArrowRight')
   }
   expect(sawBars).toBe(true)
@@ -408,7 +477,7 @@ for (const [width, height] of [[390, 844], [300, 600]] as const) {
         }
         const over = await slide.evaluate((el) => ({ down: el.scrollHeight - el.clientHeight, across: el.scrollWidth - el.clientWidth }))
         expect(over, `${name}: ${id} scrolls`).toEqual({ down: 0, across: 0 })
-        if (id === 'summary') break
+        if (id === 'outro') break
         await page.keyboard.press('ArrowRight')
       }
       // Only short captions are left; the rest of the pages have none.
@@ -436,10 +505,10 @@ for (const [width, height] of [[390, 844], [300, 600]] as const) {
         const id = (await currentSlide(page))!
         const over = await slide.evaluate((el) => ({ down: el.scrollHeight - el.clientHeight, across: el.scrollWidth - el.clientWidth }))
         expect(over, `${name}: ${id} scrolls`).toEqual({ down: 0, across: 0 })
-        if (id === 'summary') break
+        if (id === 'outro') break
         await page.keyboard.press('ArrowRight')
       }
-      await expect(slide).toHaveAttribute('data-slide', 'summary')
+      await expect(slide).toHaveAttribute('data-slide', 'outro')
     }
   })
 }
@@ -477,6 +546,7 @@ test('landing shows the install line', async ({ page }) => {
 })
 
 test('the copy button says so when the clipboard is blocked', async ({ page }) => {
+  test.skip(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), 'a phone has no install line to copy')
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('blocked')) } })
   })
@@ -549,3 +619,10 @@ for (const people of [7, 8]) {
     expect(await slide.evaluate((el) => ({ down: el.scrollHeight - el.clientHeight, across: el.scrollWidth - el.clientWidth }))).toEqual({ down: 0, across: 0 })
   })
 }
+
+test('a link pasted with a space or a line break in it still plays', async ({ page }) => {
+  const packed = await packWrap({ ...demo(), title: 'Spaced Chat' })
+  const middle = Math.floor(packed.length / 2)
+  await page.goto(`/#${packed.slice(0, middle)}%20${packed.slice(middle, middle + 10)}%0A${packed.slice(middle + 10)}`)
+  await expect(page.getByRole('heading', { name: 'Spaced Chat' })).toBeVisible()
+})

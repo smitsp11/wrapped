@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import Database from 'better-sqlite3'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { FAKE_ME, makeFakeDb, type FakeDb, type SplitGroups } from '../../fixtures/makeFakeDb'
 import { WrappedError } from '../../src/errors'
@@ -32,6 +33,25 @@ describe('session', () => {
   it('ranks the fake group chat and checks history', () => {
     expect(session.groups.map((g) => g.title)).toEqual(['Poker Night'])
     expect(session.history.kind).toBe('ok') // the fake chat starts Mon 2026-01-05, within 14 days of Jan 1
+  })
+  it("counts a group's messages on the home page the way its wrap does, leaving out ones that can't be read", () => {
+    const copyDir = fs.mkdtempSync(path.join(dir, 'undecodable-'))
+    const copy = makeFakeDb(copyDir)
+    const db = new Database(copy.path)
+    // A message whose body can't be decoded: the wrap skips it, so the home page mustn't count it either.
+    const { lastInsertRowid } = db
+      .prepare('INSERT INTO message (guid, text, attributedBody, date, is_from_me) VALUES (?, NULL, ?, ?, 1)')
+      .run('FAKE-UNDECODABLE', Buffer.from('not a typedstream'), (Date.UTC(2026, 1, 3) - Date.UTC(2001, 0, 1)) * 1e6)
+    db.prepare('INSERT INTO chat_message_join (chat_id, message_id) VALUES (?, ?)').run(copy.groupChatId, lastInsertRowid)
+    db.close()
+    const s = openSession({ openSqlite: openNodeSqlite, dbPath: copy.path, ...noOwner, contacts: new ContactBook([]), period: fullYear(2026), now: new Date(2026, 2, 10) })
+    try {
+      const built = s.buildGroup(copy.groupChatId)
+      expect(built.undecodable).toBeGreaterThan(0)
+      expect(s.groups[0]!.messages).toBe(built.wrap.volume.total)
+    } finally {
+      s.close()
+    }
   })
   it('flags history that stops long before today as stale', () => {
     const late = openSession({ openSqlite: openNodeSqlite, dbPath: fake.path, ...noOwner, contacts: new ContactBook([]), period: fullYear(2026), now: new Date(2026, 9, 27) })

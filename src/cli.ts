@@ -14,7 +14,7 @@ import { DEFAULT_CHAT_DB, MessagesDb } from './extract/messagesDb'
 import { normalizeRows } from './extract/normalize'
 import { openNodeSqlite } from './extract/sqliteNode'
 import { fitToLimit } from './share/pack'
-import type { Hit } from './stats/greatestHits'
+import { type Hit, SHOWN_HITS } from './stats/greatestHits'
 import { parseWrap } from './share/parseWrap'
 import { countWords } from './stats/words'
 import type { Chat, Message, Wrap } from './types'
@@ -193,7 +193,7 @@ function printReview(wrap: Wrap): void {
   console.log(`  Top words: ${wrap.words.topWords.map((w) => w.word).join(', ')}`)
   console.log('  Signature words:')
   Object.entries(wrap.words.signatureWordByPerson).forEach(([id, word], i) => console.log(`    ${i + 1}. ${name(id)}: "${word}"`))
-  console.log('  Quotes:')
+  console.log(`  Quotes (the first ${SHOWN_HITS} you keep go in, cut to what the slide shows):`)
   wrap.greatestHits.forEach((hit, i) => {
     console.log(`    ${i + 1}. "${hit.text}" (${name(hit.senderId)})`)
     if (looksLikeContactInfo(hit.text)) console.log('       ⚠ contains what looks like a phone number or email')
