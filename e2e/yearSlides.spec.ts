@@ -46,8 +46,8 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
       await expect(slide.locator('.months span')).toHaveCount(12)
       await expect(slide.locator('.day-page')).toHaveText('May 21')
       await expect(slide.getByText('633 messages')).toBeVisible()
-      await expect(slide.locator('.busiest .what')).toHaveText('what happened on May 21?')
-      await expectLines(page, '.aside, .busiest .what', 2)
+      await expect(slide.locator('.busiest')).not.toContainText('what happened')
+      await expectLines(page, '.aside', 2)
       await expectFits(page)
     })
 
@@ -56,8 +56,8 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
       await page.evaluate(() => document.fonts.ready)
       await goTo(page, 'months')
       await expect(page.locator('.aside')).toHaveText(/^\w+ was your yap era$/)
-      await expect(page.locator('.busiest .what')).toHaveText(/^what happened on \w{3} \d+\?$/)
-      await expectLines(page, '.aside, .busiest .what', 2)
+      await expect(page.locator('.busiest')).not.toContainText('what happened')
+      await expectLines(page, '.aside', 2)
       await expectFits(page)
     })
 
@@ -183,7 +183,7 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
       }
     })
 
-    test('a streak with no day missed gets a handwritten note under the calendar, and still fits', async ({ page }) => {
+    test('a streak with no day missed gets no extra note, just the move-in line past 100 days, and fits', async ({ page }) => {
       const wrap = makeFakeWrap('solo', { yearRound: true })
       wrap.period = { from: '2026-01-01', to: '2026-11-22' }
       wrap.timing.longestStreakDays = 325
@@ -191,8 +191,8 @@ for (const size of [{ width: 390, height: 844 }, { width: 300, height: 600 }]) {
       await page.goto(`/#${await packWrap(wrap)}`)
       await page.evaluate(() => document.fonts.ready)
       await goTo(page, 'streak')
-      await expect(page.locator('.never-missed')).toHaveText('and you never missed a day of texting')
-      await expect(page.locator('.aside')).toHaveCount(0)
+      await expect(page.locator('.never-missed')).toHaveCount(0)
+      await expect(page.locator('.aside')).toHaveText('at this point just move in together')
       await expectFits(page)
     })
   })

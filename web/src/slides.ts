@@ -113,23 +113,6 @@ export function periodDays(period: { from: string; to: string }): number {
   return Math.max(1, Math.round((Date.parse(`${period.to}T00:00:00Z`) - Date.parse(`${period.from}T00:00:00Z`)) / DAY))
 }
 
-/** A streak of at least this many days that covers the whole period gets "you never missed a day". */
-const MIN_NEVER_MISSED_DAYS = 7
-
-/**
- * True when the any-message streak covers the whole period. The day the wrap was made counts as covered even if nothing
- * was sent yet, since a year-so-far wrap's period runs to the end of today.
- */
-export function neverMissedADay(wrap: Wrap): boolean {
-  const days = periodDays(wrap.period)
-  return days >= MIN_NEVER_MISSED_DAYS && wrap.timing.longestStreakDays >= days - 1
-}
-
-/** A small handwritten touch under the streak calendar, like "you never missed a day of texting". */
-export function neverMissedNote(text: string): string {
-  return `<p class="never-missed">${escapeHtml(text)}</p>`
-}
-
 /** The footer hint on the intro and award pages. */
 const HINT =
   '<p class="hint"><span class="touch">tap to flip the page →</span><span class="pointer">click or press → to flip the page</span></p>'
@@ -236,9 +219,8 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
   slides.push(monthsSlide(wrap))
 
   const streakDays = wrap.timing.longestStreakDays
-  const neverMissed = neverMissedADay(wrap)
-  // A group's streak over 100 days gets an aside, unless the never-missed note is already there.
-  const streakAside = isGroup && !neverMissed ? aside(caption({ slide: 'streak', days: streakDays, group: true })) : ''
+  // A group's streak over 100 days gets an aside.
+  const streakAside = isGroup ? aside(caption({ slide: 'streak', days: streakDays, group: true })) : ''
   // My year leads with the longest streak with one person (personStreakSlide); a group, or an older link, with any message.
   slides.push(personStreakSlide(wrap) ?? {
     id: 'streak',
@@ -249,7 +231,6 @@ export function buildSlides(wrap: Wrap, today: Date = new Date()): Slide[] {
           <p class="big">${plural(streakDays, 'day')}</p>
           <p class="hand">in a row with at least one message</p>
         </div>
-        ${neverMissed ? neverMissedNote(isGroup ? 'not a single quiet day' : 'you never missed a day of texting') : ''}
       </div>`,
   })
 

@@ -306,17 +306,17 @@ describe('buildSlides handwritten asides and shares', () => {
     expect(slideHtml(wrap, 'hours')).toContain('<span class="quip">(early birds fr)</span>')
   })
 
-  it('tells a group with a streak over 100 days to move in together, unless it never went quiet', () => {
+  it('tells a group with a streak over 100 days to move in together', () => {
     const wrap = makeFakeWrap('group')
     wrap.timing.longestStreakDays = 100
     expect(slideHtml(wrap, 'streak')).not.toContain('class="aside"')
     wrap.timing.longestStreakDays = 120
     expect(slideHtml(wrap, 'streak')).toContain('<h2>Longest streak</h2><p class="aside">at this point just move in together, all of you</p>')
     expect(slideHtml(wrap, 'streak')).not.toContain('dedication')
-    wrap.period = { from: '2026-01-01', to: '2026-04-11' } // 100 days, every one of them texted
+    wrap.period = { from: '2026-01-01', to: '2026-04-11' } // 100 days, every one of them texted: no extra note
     wrap.timing.longestStreakDays = 101
-    expect(slideHtml(wrap, 'streak')).toContain('not a single quiet day')
-    expect(slideHtml(wrap, 'streak')).not.toContain('move in')
+    expect(slideHtml(wrap, 'streak')).not.toContain('quiet day')
+    expect(slideHtml(wrap, 'streak')).toContain('move in together')
   })
 
   it('calls out the Paragraph Texter in place of the texting styles aside, or you', () => {

@@ -6,7 +6,7 @@
 import { OTHERS_ID, type Wrap } from '../../src/types'
 import { firstName, shortNames } from '../../src/wrap/names'
 import { caption } from './captions'
-import { MONTHS, aside, escapeHtml, neverMissedADay, neverMissedNote, personName, plural, type Slide } from './slides'
+import { MONTHS, aside, escapeHtml, personName, plural, type Slide } from './slides'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const FULL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -41,8 +41,7 @@ function shortName(wrap: Wrap, names: Map<string, string>, id: string): string {
 
 /**
  * Peak month: messages per month as bars, like Peak hour, up to the period's last month; the busiest one in orange
- * (ties: the earlier month), named in the aside as your "yap era". Under it the busiest day, with a "what happened on
- * May 21?". The wrap may also know the total against last year (`vsLastYear`), which the slide leaves out.
+ * (ties: the earlier month), named in the aside as your "yap era". Under it the busiest day. The wrap may also know the total against last year (`vsLastYear`), which the slide leaves out.
  */
 export function monthsSlide(wrap: Wrap): Slide {
   const { first, last } = shownMonths(wrap.period)
@@ -60,7 +59,7 @@ export function monthsSlide(wrap: Wrap): Slide {
     busiest && day
       ? `<div class="busiest">
           <p class="day-page"><span>${MONTHS[day.getUTCMonth()]}</span> <b>${day.getUTCDate()}</b></p>
-          <p><span class="hand">busiest day</span> <b>${plural(busiest.messages, 'message')}</b> <small>${WEEKDAYS[day.getUTCDay()]}</small><span class="what hand">what happened on ${dayLabel(day)}?</span></p>
+          <p><span class="hand">busiest day</span> <b>${plural(busiest.messages, 'message')}</b> <small>${WEEKDAYS[day.getUTCDay()]}</small></p>
         </div>`
       : ''
   const era = caption({ slide: 'months', month: FULL_MONTHS[first + peakIndex]!, peakCount: top, group: wrap.mode === 'group' })
@@ -148,8 +147,7 @@ function longestRun(months: (string | null)[]): { id: string; start: number; end
 
 /**
  * My year's streak: the most days in a row with a 1:1 message with one person ("62 days in a row with Sam"), and when.
- * When you texted someone every day of the period, a handwritten "you never missed a day of texting" goes under it;
- * otherwise a streak over 100 days gets "at this point just move in together" as its aside (never both).
+ * A streak over 100 days gets "at this point just move in together" as its aside.
  * Null for a group, an older link, or a streak under two days.
  */
 export function personStreakSlide(wrap: Wrap): Slide | null {
@@ -158,10 +156,9 @@ export function personStreakSlide(wrap: Wrap): Slide | null {
   const name = shortName(wrap, shortNamesOf(wrap), streak.personId)
   const from = utcDate(streak.from)
   const to = new Date(from.getTime() + (streak.days - 1) * DAY_MS)
-  const neverMissed = neverMissedADay(wrap)
   return {
     id: 'streak',
-    html: `<h2>Longest streak</h2>${neverMissed ? '' : aside(caption({ slide: 'streak', days: streak.days, group: false }))}
+    html: `<h2>Longest streak</h2>${aside(caption({ slide: 'streak', days: streak.days, group: false }))}
       <div class="stage">
         <div class="calendar">
           <p class="rings" aria-hidden="true"><span></span><span></span></p>
@@ -169,7 +166,6 @@ export function personStreakSlide(wrap: Wrap): Slide | null {
           <p class="hand">in a row with <b>${escapeHtml(name)}</b></p>
           <p class="dates">${dayLabel(from)} → ${dayLabel(to)}</p>
         </div>
-        ${neverMissed ? neverMissedNote('and you never missed a day of texting') : ''}
       </div>`,
   }
 }

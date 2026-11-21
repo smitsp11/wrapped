@@ -33,12 +33,13 @@ describe('the months slide', () => {
     expect(html).toContain('--n:11')
   })
 
-  it('shows the busiest day as a calendar page with its count, weekday and a "what happened?"', () => {
+  it('shows the busiest day as a calendar page with its count and weekday', () => {
     const wrap = makeFakeWrap('group')
     wrap.timing.busiestDay = { date: '2026-03-14', messages: 1203 }
     const html = monthsSlide(wrap).html
     expect(html).toContain('<p class="day-page"><span>Mar</span> <b>14</b></p>')
-    expect(html).toContain('<b>1,203 messages</b> <small>a Saturday</small><span class="what hand">what happened on Mar 14?</span>')
+    expect(html).toContain('<b>1,203 messages</b> <small>a Saturday</small></p>')
+    expect(html).not.toContain('what happened')
     wrap.timing.busiestDay = { date: '2026-03-15', messages: 1 }
     expect(monthsSlide(wrap).html).toContain('<b>1 message</b> <small>a Sunday</small>')
   })
@@ -197,26 +198,14 @@ describe('the longest streak with one person', () => {
     expect(html).not.toContain('never missed')
   })
 
-  it('shows only the never-missed line when both it and moving in apply', () => {
+  it('never adds a "never missed a day" note, even when every day was texted', () => {
     const wrap = makeFakeWrap('solo', { yearRound: true })
     wrap.period = yearSoFar
     wrap.personStreak = { personId: 'p2', days: 200, from: '2026-01-01' }
     wrap.timing.longestStreakDays = 325
     const html = personStreakSlide(wrap)!.html
-    expect(html).toContain('never missed a day')
-    expect(html).not.toContain('move in')
-    expect(html).not.toContain('class="aside"')
-  })
-
-  it('says you never missed a day when the any-message streak covers the whole period', () => {
-    const wrap = makeFakeWrap('solo', { yearRound: true })
-    wrap.period = yearSoFar // 325 days, Jan 1 → Nov 21
-    wrap.timing.longestStreakDays = 325
-    expect(personStreakSlide(wrap)!.html).toContain('<p class="never-missed">and you never missed a day of texting</p>')
-    wrap.timing.longestStreakDays = 324 // nothing sent yet on the day it was made still counts
-    expect(personStreakSlide(wrap)!.html).toContain('never missed')
-    wrap.timing.longestStreakDays = 323
-    expect(personStreakSlide(wrap)!.html).not.toContain('never missed')
+    expect(html).not.toContain('never missed')
+    expect(html).toContain('<p class="aside">at this point just move in together</p>')
   })
 
   it('falls back to the any-message streak under two days, for older links, and always in a group', () => {
@@ -230,7 +219,7 @@ describe('the longest streak with one person', () => {
     expect(slideHtml(group, 'streak')).toContain('in a row with at least one message')
   })
 
-  it("cleans up the group streak too: no silence line, moving in past 100 days, and a note only when the chat never went quiet", () => {
+  it("cleans up the group streak too: no silence line, no extra note, and moving in past 100 days", () => {
     const group = makeFakeWrap('group', { yearRound: true })
     group.timing.longestStreakDays = 150
     group.timing.longestSilenceDays = 9
@@ -241,7 +230,7 @@ describe('the longest streak with one person', () => {
     expect(html).not.toContain('never-missed')
     group.period = yearSoFar
     group.timing.longestStreakDays = 325
-    expect(slideHtml(group, 'streak')).toContain('<p class="never-missed">not a single quiet day</p>')
-    expect(slideHtml(group, 'streak')).not.toContain('class="aside"')
+    expect(slideHtml(group, 'streak')).not.toContain('quiet day')
+    expect(slideHtml(group, 'streak')).toContain('<p class="aside">at this point just move in together, all of you</p>')
   })
 })
