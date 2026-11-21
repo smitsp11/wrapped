@@ -68,25 +68,34 @@ Every slide is a number counted from your messages. Here's what a group chat's w
 
 | Slide | What it counts |
 |:--|:--|
-| **The cover** | Total messages in the chat this year, on a polaroid, with the dates it covers. |
+| **The cover** | Total messages in the chat this year, on a polaroid, with the dates it covers and about how many texts that is a day. |
 | **Who talked the most** | Each person's share of the chat. |
 | **Peak hour** | The hour of the day the chat is busiest. |
-| **Longest streak** | The most days in a row with at least one message (and the longest silence, if the chat went quiet for 2+ days). |
-| **Fastest repliers** | How fast each person joins a conversation on average someone else started, timed from its first message, for people who joined at least 5. |
+| **Peak month** | Messages per month, the busiest month, and the busiest single day. |
+| **Longest streak** | The most days in a row with at least one message. |
+| **Fastest repliers** | How soon each person typically joins a conversation someone else started, timed from its first message. Joining more than 12 hours later doesn't count, and only people who joined at least 5 are listed. |
 | **Who starts the conversation** | Who sends the first message after 6+ hours of quiet. |
 | **Biggest reactors** | Who hands out the most tapbacks. |
-| **The group's vocabulary** | Top words, top emoji, and each person's signature word. |
-| **Greatest hits** | The chat's best messages, ranked by the reactions you all already gave, with when each was sent. |
+| **The group's vocabulary** | Top words and phrases, top emoji, and each person's signature word. |
+| **Texting styles** | Each person's style, from how long their texts are and how many they send in a row: Paragraph Texter, Spray n Pray, Nonchalant, One and Done or Perfectly Balanced. |
+| **Greatest hits** | Up to 3 of the chat's best messages, ranked by the reactions you all already gave, with when each was sent. Tap **see the convo** to read the conversation around one. |
 | **Awards** | One stamped certificate per award (see below). |
+| **Summary card** | The chat's name, total, top word, top emoji and three award winners on one card. |
 
-**My year** is the other kind of wrap: you and the 5 people who sent the most messages in your chats,
-with your top chats, your own vocabulary and your own greatest hits.
+Tap **save ↓** on the Greatest hits, vocabulary, award or summary page to save it as an image.
+
+**My year** is the other kind of wrap, about you across all your chats: who texts you the most (your
+top 5 people), your top chats, your person month by month (who you texted most one-on-one each month),
+peak hour and peak month, your longest streak with one person, your own vocabulary, your own greatest
+hits from your 5 busiest group chats, and a closing card with your texting personality.
 
 Everything happens on a page served by the program on your own Mac: pick My year or a group chat,
 watch it, and press **Send to group chat** (**Send in Messages** for My year). That copies the link
 and starts a new message with the link filled in; you pick the group and press send yourself. It
-never sends anything for you. In a group wrap, your name from your own contact card shows instead of
-"You".
+never sends anything for you. In a group wrap, your first name shows instead of "You", so it reads
+right to the group. It comes from your Apple Account, your own card in Contacts or this Mac's user name,
+and is only used when your chats back it up (for example, friends greet you by it). If it can't tell,
+it keeps "You".
 
 <p align="center">
   <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left, open on its first page. Beside it, 'Group chat · 2026 so far', the title, '533 messages · 5 people', the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, then 'Now post yours' with a small share card, Save image, Copy image and Make another.">
@@ -129,29 +138,41 @@ Here's what that means in practice:
   is packed into the part after the `#`. Browsers never send that part to any server, so when a
   friend opens the link, the website only hands over the page; their phone unpacks the wrap itself.
   The website never sees a wrap. (Like any website, its host sees the ordinary request for the page.)
-- **No AI, no account, no tracking.** Nothing is summarised by a model, and there are no cookies or
-  user IDs. The site counts page views with Vercel's cookieless analytics, with the part after the
-  `#` removed first, and keeps a daily tally of site visits, wrap links and demos opened. The app adds one to a
-  daily tally when it starts and when you make or send a wrap; no names, IDs or message text.
-  `WRAPPED_NO_COUNT=1` turns that off.
+- **No AI, no account, no cookies.** Nothing is summarised by a model, and there are no cookies or
+  user IDs. The website counts page views with Vercel's cookieless Web Analytics, which only ever
+  gets one of three addresses: the landing page, "a wrap was opened", or the demo. The part after the
+  `#` is never sent. Like any page-view count, Vercel also sees the referrer, country, browser and
+  device type. The site adds one to a daily tally when the landing page, a wrap link or the demo
+  opens. The app asks the website for the newest version number when it starts (that request adds one
+  to the day's launch tally) and adds one when you make or send a wrap. No names, IDs, links or
+  message text are ever sent. `WRAPPED_NO_COUNT=1` turns the app's tallies off;
+  `WRAPPED_NO_UPDATE_CHECK=1` turns off every request the app makes.
 - **No phone numbers or emails in a link.** People are stored as short ids with the names from your
   Contacts. Anyone who isn't in your Contacts shows up masked, like `+1 ••• ••• 4821` or
   `j•••@gmail.com`.
-- **You watch the wrap before you share it.** The preview on the page plays the exact link you send.
-  Quotes that look like they contain a phone number or email are left out. Links are capped at
-  8,192 characters; if a wrap is too big, the least-reacted quotes are left out.
-- **My year stays about you.** It names only you and your top 5 people. Everyone else is grouped as
-  "Everyone else", and only your own words and quotes are used.
+- **You watch the wrap before you share it.** The preview on the page plays the link you send. The
+  only difference is photos: on your Mac, a conversation shows your real photos; in the link they're
+  just "📷 Photo", and the files never leave your Mac. Quotes and messages that look like they contain
+  a phone number or email are left out. Links are capped at 8,192 characters; if a wrap is too big,
+  conversations are dropped first, then the least-reacted quotes.
+- **Greatest hits bring their conversation.** Each quote on the Greatest hits page (up to 3) carries
+  the conversation around it, up to 30 messages of up to 280 characters each, so friends can tap
+  **see the convo**.
+- **My year stays mostly about you.** Its stats name only you and your top 5 people; everyone else is
+  grouped as "Everyone else", and the vocabulary is only your own words. Greatest hits are your own
+  messages from your 5 busiest group chats, and each one's conversation shows that chat's name and the
+  people in it.
 - **Saved wraps stay on your Mac**, in `~/.imessage-wrapped/wraps`, readable only by your user account.
 
 | | Where it goes |
 |:--|:--|
 | Your Messages database (`~/Library/Messages/chat.db`) | Copied to a temporary folder on your Mac, read, then deleted. |
 | Your Contacts | Copied the same way and read on your Mac to match names to numbers and emails. Only names go into a wrap. |
-| The numbers, names and quotes in a wrap | Packed into the link, after the `#`. |
+| The numbers, names, quotes and the conversations around the top 3 quotes | Packed into the link, after the `#`. |
 | The link | Wherever you paste it. Nowhere else. |
 | wrapped.smitpatel.xyz | Serves the viewer page. Never receives the part after the `#`. |
-| Daily tallies | A number per day for each of: launches, wraps made, wraps sent, site visits, wrap links opened, demos opened. Nothing else. |
+| Page views | Vercel Web Analytics, cookieless: one of three addresses (`/`, `/w`, `/demo`). Never the part after the `#`. |
+| Daily tallies | One number per day for each of: app launches, group wraps made, My year wraps made, wraps sent, landing page visits, wrap links opened, demos opened. No IP addresses or IDs are kept. |
 
 One thing to know: anyone who has a link can open that wrap, the same as a screenshot. There's no
 server copy to delete, so share it with the people it's about.
@@ -231,6 +252,7 @@ wrapped --year 2025        # a full past year instead of this year so far
 wrapped --version          # print the installed version
 wrapped update             # install the newest version
 WRAPPED_NO_COUNT=1 wrapped # don't add to the anonymous daily tallies
+WRAPPED_NO_UPDATE_CHECK=1 wrapped # no network requests at all (no update notice, no tallies)
 DEBUG=1 wrapped            # show the full error if something goes wrong
 ```
 
@@ -348,7 +370,7 @@ Issues are very welcome. If something looks wrong, [open an issue](https://githu
 with your macOS version and what you saw. Please don't paste real messages, names or wrap links into
 an issue: a link contains the whole wrap.
 
-I can't merge pull requests here directly, sorry: each release replaces this repo with one squashed
+I can't merge pull requests here directly, sorry: each release lands here as one squashed
 commit from where I build it, so a merged PR would be overwritten by the next release. If you have a
 fix in mind, describe it in an issue (a snippet or diff there is great) and I'll bring it over by hand.
 
