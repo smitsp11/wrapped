@@ -32,5 +32,3 @@ out/
 release/
 deploy/
 
-# Claude Code local state (agent worktrees)
-.claude/
