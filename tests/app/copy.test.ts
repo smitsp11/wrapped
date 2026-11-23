@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BETA_TAG,
   INTRO,
   MISSING_DB,
   UPDATE_FAILED,
@@ -82,9 +81,8 @@ describe('copy', () => {
     expect(historyLine({ kind: 'thin', since: new Date(2026, 9, 6) })).toContain('"Keep messages" (Messages → Settings → General)')
     expect(historyLine({ kind: 'stale', until: new Date(2026, 1, 10) })).toContain('click Sync Now')
   })
-  it('says it is a beta in the intro line', () => {
-    expect(INTRO.trim()).toBe('iMessage Wrapped (beta)')
-    expect(BETA_TAG).toBe('Beta')
+  it('names the app in the intro line', () => {
+    expect(INTRO.trim()).toBe('iMessage Wrapped')
   })
   it('mentions the startup file only when the installer added the line', () => {
     expect(welcomeLines(true).join('\n')).toContain('Added  wrapped  to your shell\'s startup file')

@@ -1,4 +1,3 @@
-import { BETA_TAG } from '../../src/app/copy'
 import { NewerVersionError } from '../../src/errors'
 import { unpackWrap } from '../../src/share/pack'
 import { parseWrap } from '../../src/share/parseWrap'
@@ -134,7 +133,6 @@ function showLanding(): void {
   app.innerHTML = `
     <section class="slide landing">
       <div class="landing-grid">
-        <p class="kicker"><span class="beta" data-beta-tag>${BETA_TAG}</span></p>
         <h1>iMessage Wrapped <span class="hand">for your group chats</span></h1>
         <p class="lede"><span class="hook">the year's almost over. who did you actually text the most?</span>
           <span class="trust">Watch it on any phone.</span></p>

@@ -39,7 +39,6 @@ test('the landing page explains who can make a wrap and opens the demo', async (
   // On a computer Mac comes up once, beside the install line, where it matters. A phone gets the card to send it to a Mac.
   if (!phone) expect((await page.locator('.landing').innerText()).match(/\bMac\b/g)).toEqual(['Mac'])
   await expect(page.getByText(/^Needs a Mac with Messages\./).filter({ visible: true })).toHaveCount(1)
-  await expect(page.locator('[data-beta-tag]')).toHaveText('Beta')
   await page.getByRole('link', { name: 'See a demo' }).click()
   await expect(page.getByTestId('slide')).toHaveAttribute('data-slide', 'intro')
   await tap(page, 0.8)

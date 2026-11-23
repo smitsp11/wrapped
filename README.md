@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/images/icon.svg" width="84" alt=""></p>
 
-<h1 align="center">iMessage Wrapped <sup><sub>beta</sub></sup></h1>
+<h1 align="center">iMessage Wrapped</h1>
 
 <h3 align="center">the year's almost over. who did you actually text the most?</h3>
 
@@ -296,7 +296,7 @@ That's why the wrap page plays the whole wrap before you send the link.
 <details>
 <summary><b>Why a Terminal command instead of an app?</b></summary>
 
-A downloadable Mac app needs an Apple Developer ID and notarization, which this beta doesn't have
+A downloadable Mac app needs an Apple Developer ID and notarization, which this project doesn't have
 yet. The one-line install gets you the same program without that.
 </details>
 

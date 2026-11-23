@@ -3,9 +3,7 @@ import type { StopReason } from './serve'
 import type { Update } from './update'
 
 /** The first line in the terminal; clack draws it as a label, so it keeps a space on each side. */
-export const INTRO = ' iMessage Wrapped (beta) '
-/** The small tag next to the title on the landing page. */
-export const BETA_TAG = 'Beta'
+export const INTRO = ' iMessage Wrapped '
 
 /**
  * First run only. `addedToPath`: the installer's line is in a shell startup file (see shellStartup.ts). Never claim it otherwise.
