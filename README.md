@@ -31,7 +31,7 @@
 
 <p align="center">
   <a href="https://wrapped.smitpatel.xyz/#demo">
-    <img src="docs/images/demo.gif" width="320" alt="A phone tapping through the wrap of a made-up group chat called Poker Night: 22,938 messages on a taped polaroid with 'That's about 71 texts a day', Peak month May with 'May was the chat's yap era' and its busiest day, May 21, everyone's texting style under 'Jordan writes essays, the rest of you text', three greatest-hit quotes, one opened to show the conversation around Alex's 'engrave sam's name on it now, save time' with the quote lifted out, a stamped Comedian award for Sam Rivera, who 'made the chat laugh 305 times', and the 'our 2026 in texts' summary card to save. A 'Try it yourself' button sits at the bottom of each page.">
+    <img src="docs/images/demo.gif" width="320" alt="Tapping through the Poker Night demo wrap on a phone">
   </a>
   <br>
   <sub>Poker Night, a made-up group chat, tapped through on a phone. <a href="https://wrapped.smitpatel.xyz/#demo">Open the demo</a>.</sub>
@@ -57,7 +57,7 @@ your full history is on the Mac. You don't need Node, Homebrew or anything else.
 need a phone or a browser to watch.
 
 <p align="center">
-  <img src="docs/images/install.png" width="720" alt="Terminal: the curl line is pasted, the installer prints 'Downloading iMessage Wrapped…' and 'Installed. Opening it…', then the program shows a welcome note: it makes your wraps from Messages on this Mac, counts launches, wraps made and wraps sent as anonymous daily tallies (WRAPPED_NO_COUNT=1 turns it off), and added wrapped to the shell's startup file. It asks 'Continue?', reads Messages and Contacts (4 names), says 'Your messages go back to Jan 2026', then 'iMessage Wrapped is open in your browser' with a link on 127.0.0.1, and 'Keep this window open. Press o to reopen the page, q to quit.'">
+  <img src="docs/images/install.png" width="720" alt="Installing from Terminal">
   <br>
   <sub>The program's real output, run on a made-up Messages database. The rest happens in your browser.</sub>
 </p>
@@ -98,7 +98,7 @@ and is only used when your chats back it up (for example, friends greet you by i
 it keeps "You".
 
 <p align="center">
-  <img src="docs/images/send.png" width="720" alt="The wrap page for Poker Night: a phone-sized preview of the wrap on the left, open on its first page with 22,938 messages and 'That's about 71 texts a day'. Beside it, 'Group chat · 2026 so far', the title, '22,938 messages · 6 people', the Send to group chat button with '✓ Link copied · Messages is open, pick your group and send' under it, and a 'Bonus: make a card about your own year →' link.">
+  <img src="docs/images/send.png" width="720" alt="The wrap page with a preview and the Send to group chat button">
   <br>
   <sub>The wrap page on your Mac, just after Send.</sub>
 </p>
